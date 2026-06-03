@@ -1,0 +1,20 @@
+[package]
+name = "nextim-crypto"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+nextim-proto = { path = "../nextim-proto" }
+nextim-core = { path = "../nextim-core" }
+vodozemac.workspace = true
+ed25519-dalek.workspace = true
+x25519-dalek.workspace = true
+sha2.workspace = true
+rand.workspace = true
+zeroize.workspace = true
+base64.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+prost.workspace = true
+serde.workspace = true
+serde_json.workspace = true

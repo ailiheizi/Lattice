@@ -1,0 +1,10 @@
+[package]
+name = "nextim-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+nextim-proto = { path = "../nextim-proto" }
+thiserror.workspace = true
+uuid.workspace = true
+bytes.workspace = true

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NextIM Web Client - Test Page</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0d1117;
+  color: #c9d1d9;
+  padding: 20px;
+}
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+h1 {
+  color: #58a6ff;
+  margin-bottom: 20px;
+}
+.section {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.section h2 {
+  color: #58a6ff;
+  font-size: 18px;
+  margin-bottom: 15px;
+}
+.test-item {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 10px;
+}
+.test-item h3 {
+  font-size: 14px;
+  color: #c9d1d9;
+  margin-bottom: 8px;
+}
+.test-item p {
+  font-size: 13px;
+  color: #8b949e;
+  line-height: 1.5;
+}
+.status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 8px;
+}
+.status.pass { background: #238636; color: #fff; }
+.status.pending { background: #9e6a03; color: #fff; }
+.status.fail { background: #da3633; color: #fff; }
+button {
+  background: #238636;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  margin-right: 8px;
+  margin-top: 10px;
+}
+button:hover {
+  background: #2ea043;
+}
+button.secondary {
+  background: #21262d;
+}
+button.secondary:hover {
+  background: #30363d;
+}
+.code {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  padding: 10px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #79c0ff;
+  margin-top: 10px;
+  overflow-x: auto;
+}
+.result {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.result.success {
+  background: rgba(35, 134, 54, 0.2);
+  border: 1px solid #238636;
+  color: #3fb950;
+}
+.result.error {
+  background: rgba(218, 54, 51, 0.2);
+  border: 1px solid #da3633;
+  color: #f85149;
+}
+.iframe-container {
+  margin-top: 20px;
+  border: 2px solid #30363d;
+  border-radius: 8px;
+  overflow: hidden;
+}
+iframe {
+  width: 100%;
+  height: 600px;
+  border: none;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>NextIM Web Client - Test Suite</h1>
+
+  <div class="section">
+    <h2>1. API Connectivity Tests</h2>
+
+    <div class="test-item">
+      <h3>Test 1.1: Health Check <span class="status pending" id="test-1-1">PENDING</span></h3>
+      <p>Verify that the Store API health endpoint is accessible.</p>
+      <div class="code">GET http://127.0.0.1:9101/health</div>
+      <button onclick="testHealth()">Run Test</button>
+      <div id="result-1-1"></div>
+    </div>
+
+    <div class="test-item">
+      <h3>Test 1.2: Identity Endpoint <span class="status pending" id="test-1-2">PENDING</span></h3>
+      <p>Fetch Store identity information.</p>
+      <div class="code">GET http://127.0.0.1:9101/identity</div>
+      <button onclick="testIdentity()">Run Test</button>
+      <div id="result-1-2"></div>
+    </div>
+
+    <div class="test-item">
+      <h3>Test 1.3: WebSocket Connection <span class="status pending" id="test-1-3">PENDING</span></h3>
+      <p>Establish WebSocket connection to Store.</p>
+      <div class="code">ws://127.0.0.1:9100</div>
+      <button onclick="testWebSocket()">Run Test</button>
+      <button class="secondary" onclick="closeWebSocket()">Close</button>
+      <div id="result-1-3"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>2. Room Management Tests</h2>
+
+    <div class="test-item">
+      <h3>Test 2.1: List Rooms <span class="status pending" id="test-2-1">PENDING</span></h3>
+      <p>Retrieve all available rooms.</p>
+      <div class="code">GET http://127.0.0.1:9101/rooms</div>
+      <button onclick="testListRooms()">Run Test</button>
+      <div id="result-2-1"></div>
+    </div>
+
+    <div class="test-item">
+      <h3>Test 2.2: Create Room <span class="status pending" id="test-2-2">PENDING</span></h3>
+      <p>Create a new test room.</p>
+      <div class="code">POST http://127.0.0.1:9101/rooms</div>
+      <button onclick="testCreateRoom()">Run Test</button>
+      <div id="result-2-2"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>3. Message Tests</h2>
+
+    <div class="test-item">
+      <h3>Test 3.1: Send Message <span class="status pending" id="test-3-1">PENDING</span></h3>
+      <p>Send a test message to a room.</p>
+      <div class="code">POST http://127.0.0.1:9101/messages</div>
+      <button onclick="testSendMessage()">Run Test</button>
+      <div id="result-3-1"></div>
+    </div>
+
+    <div class="test-item">
+      <h3>Test 3.2: Retrieve Messages <span class="status pending" id="test-3-2">PENDING</span></h3>
+      <p>Get messages from a room.</p>
+      <div class="code">GET http://127.0.0.1:9101/messages/:room_id</div>
+      <button onclick="testGetMessages()">Run Test</button>
+      <div id="result-3-2"></div>
+    </div>
+
+    <div class="test-item">
+      <h3>Test 3.3: Search Messages <span class="status pending" id="test-3-3">PENDING</span></h3>
+      <p>Search for messages containing specific text.</p>
+      <div class="code">GET http://127.0.0.1:9101/search?q=test</div>
+      <button onclick="testSearchMessages()">Run Test</button>
+      <div id="result-3-3"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>4. Contact Management Tests</h2>
+
+    <div class="test-item">
+      <h3>Test 4.1: List Contacts <span class="status pending" id="test-4-1">PENDING</span></h3>
+      <p>Retrieve all contacts.</p>
+      <div class="code">GET http://127.0.0.1:9101/contacts</div>
+      <button onclick="testListContacts()">Run Test</button>
+      <div id="result-4-1"></div>
+    </div>
+
+    <div class="test-item">
+      <h3>Test 4.2: Add Contact <span class="status pending" id="test-4-2">PENDING</span></h3>
+      <p>Add a new contact.</p>
+      <div class="code">POST http://127.0.0.1:9101/contacts</div>
+      <button onclick="testAddContact()">Run Test</button>
+      <div id="result-4-2"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>5. UI Component Tests</h2>
+
+    <div class="test-item">
+      <h3>Test 5.1: Theme Toggle</h3>
+      <p>Test light/dark theme switching.</p>
+      <button onclick="openMainApp()">Open Main App</button>
+      <p style="margin-top: 10px; font-size: 12px;">Manual test: Click Settings tab → Toggle "Dark Theme"</p>
+    </div>
+
+    <div class="test-item">
+      <h3>Test 5.2: Emoji Picker</h3>
+      <p>Test emoji selection functionality.</p>
+      <p style="margin-top: 10px; font-size: 12px;">Manual test: Click 😊 button in message input area</p>
+    </div>
+
+    <div class="test-item">
+      <h3>Test 5.3: Notifications</h3>
+      <p>Test desktop notification system.</p>
+      <button onclick="testNotification()">Test Notification</button>
+      <p style="margin-top: 10px; font-size: 12px;">Note: Browser permission required</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>6. Live Preview</h2>
+    <div class="iframe-container">
+      <iframe src="index.html" id="preview-frame"></iframe>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL = 'http://127.0.0.1:9101';
+const WS_URL = 'ws://127.0.0.1:9100';
+let testWs = null;
+let testRoomId = null;
+
+function updateStatus(testId, status) {
+  const el = document.getElementById(`test-${testId}`);
+  el.className = `status ${status}`;
+  el.textContent = status.toUpperCase();
+}
+
+function showResult(testId, success, message, data = null) {
+  const resultDiv = document.getElementById(`result-${testId}`);
+  const cls = success ? 'success' : 'error';
+  let html = `<div class="result ${cls}">${message}`;
+  if (data) {
+    html += `<pre style="margin-top: 8px; font-size: 11px; overflow-x: auto;">${JSON.stringify(data, null, 2)}</pre>`;
+  }
+  html += '</div>';
+  resultDiv.innerHTML = html;
+  updateStatus(testId, success ? 'pass' : 'fail');
+}
+
+async function testHealth() {
+  try {
+    const resp = await fetch(`${API_URL}/health`);
+    const text = await resp.text();
+    if (text === 'ok') {
+      showResult('1-1', true, '✓ Health check passed');
+    } else {
+      showResult('1-1', false, `✗ Unexpected response: ${text}`);
+    }
+  } catch (e) {
+    showResult('1-1', false, `✗ Error: ${e.message}`);
+  }
+}
+
+async function testIdentity() {
+  try {
+    const resp = await fetch(`${API_URL}/identity`);
+    const data = await resp.json();
+    showResult('1-2', true, '✓ Identity retrieved successfully', data);
+  } catch (e) {
+    showResult('1-2', false, `✗ Error: ${e.message}`);
+  }
+}
+
+function testWebSocket() {
+  try {
+    testWs = new WebSocket(WS_URL);
+    testWs.binaryType = 'arraybuffer';
+
+    testWs.onopen = () => {
+      showResult('1-3', true, '✓ WebSocket connected successfully');
+    };
+
+    testWs.onerror = (e) => {
+      showResult('1-3', false, `✗ WebSocket error: ${e.message || 'Connection failed'}`);
+    };
+
+    testWs.onclose = () => {
+      const resultDiv = document.getElementById('result-1-3');
+      if (!resultDiv.innerHTML.includes('✓')) {
+        showResult('1-3', false, '✗ WebSocket closed unexpectedly');
+      }
+    };
+
+    testWs.onmessage = (event) => {
+      console.log('WebSocket message received:', event.data);
+    };
+  } catch (e) {
+    showResult('1-3', false, `✗ Error: ${e.message}`);
+  }
+}
+
+function closeWebSocket() {
+  if (testWs) {
+    testWs.close();
+    testWs = null;
+    document.getElementById('result-1-3').innerHTML += '<div class="result success" style="margin-top: 10px;">WebSocket closed manually</div>';
+  }
+}
+
+async function testListRooms() {
+  try {
+    const resp = await fetch(`${API_URL}/rooms`);
+    const data = await resp.json();
+    showResult('2-1', true, `✓ Retrieved ${data.length} room(s)`, data);
+    if (data.length > 0) {
+      testRoomId = data[0].room_id;
+    }
+  } catch (e) {
+    showResult('2-1', false, `✗ Error: ${e.message}`);
+  }
+}
+
+async function testCreateRoom() {
+  try {
+    const roomName = `Test Room ${Date.now()}`;
+    const resp = await fetch(`${API_URL}/rooms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: roomName,
+        creator_fingerprint: 'test-user',
+        room_type: 'group'
+      })
+    });
+    const data = await resp.json();
+    testRoomId = data.room_id;
+    showResult('2-2', true, `✓ Room created: ${roomName}`, data);
+  } catch (e) {
+    showResult('2-2', false, `✗ Error: ${e.message}`);
+  }
+}
+
+async function testSendMessage() {
+  if (!testRoomId) {
+    showResult('3-1', false, '✗ No room available. Run "Create Room" test first.');
+    return;
+  }
+
+  try {
+    const resp = await fetch(`${API_URL}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        room_id: testRoomId,
+        sender_fingerprint: 'test-user',
+        text: `Test message at ${new Date().toLocaleTimeString()}`
+      })
+    });
+    const data = await resp.json();
+    showResult('3-1', true, '✓ Message sent successfully', data);
+  } catch (e) {
+    showResult('3-1', false, `✗ Error: ${e.message}`);
+  }
+}
+
+async function testGetMessages() {
+  if (!testRoomId) {
+    showResult('3-2', false, '✗ No room available. Run "Create Room" test first.');
+    return;
+  }
+
+  try {
+    const resp = await fetch(`${API_URL}/messages/${testRoomId}`);
+    const data = await resp.json();
+    showResult('3-2', true, `✓ Retrieved ${data.length} message(s)`, data);
+  } catch (e) {
+    showResult('3-2', false, `✗ Error: ${e.message}`);
+  }
+}
+
+async function testSearchMessages() {
+  try {
+    const resp = await fetch(`${API_URL}/search?q=test&limit=10`);
+    const data = await resp.json();
+    showResult('3-3', true, `✓ Found ${data.length} result(s)`, data);
+  } catch (e) {
+    showResult('3-3', false, `✗ Error: ${e.message}`);
+  }
+}
+
+async function testListContacts() {
+  try {
+    const resp = await fetch(`${API_URL}/contacts`);
+    const data = await resp.json();
+    showResult('4-1', true, `✓ Retrieved ${data.length} contact(s)`, data);
+  } catch (e) {
+    showResult('4-1', false, `✗ Error: ${e.message}`);
+  }
+}
+
+async function testAddContact() {
+  try {
+    const resp = await fetch(`${API_URL}/contacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fingerprint: `test-fp-${Date.now()}`,
+        display_name: 'Test Contact',
+        store_address: 'ws://test.example.com:9100',
+        trust_level: 1
+      })
+    });
+    if (resp.ok) {
+      showResult('4-2', true, '✓ Contact added successfully');
+    } else {
+      showResult('4-2', false, `✗ Failed with status ${resp.status}`);
+    }
+  } catch (e) {
+    showResult('4-2', false, `✗ Error: ${e.message}`);
+  }
+}
+
+function testNotification() {
+  if ('Notification' in window) {
+    if (Notification.permission === 'granted') {
+      new Notification('NextIM Test', {
+        body: 'This is a test notification',
+        icon: '/favicon.ico'
+      });
+      alert('Notification sent! Check your system tray.');
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          new Notification('NextIM Test', {
+            body: 'This is a test notification',
+            icon: '/favicon.ico'
+          });
+          alert('Notification sent! Check your system tray.');
+        }
+      });
+    } else {
+      alert('Notifications are blocked. Please enable them in browser settings.');
+    }
+  } else {
+    alert('This browser does not support notifications.');
+  }
+}
+
+function openMainApp() {
+  window.open('index.html', '_blank');
+}
+
+// Auto-run basic tests on load
+window.addEventListener('load', () => {
+  console.log('NextIM Web Client Test Suite loaded');
+  console.log('Run tests manually or use the buttons above');
+});
+</script>
+</body>
+</html>

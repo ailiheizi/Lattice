@@ -1,0 +1,31 @@
+{
+  "name": "nextim-web-client",
+  "version": "0.1.0",
+  "description": "NextIM Web Client - Decentralized Instant Messaging",
+  "main": "index.html",
+  "scripts": {
+    "start": "python -m http.server 8080",
+    "test": "echo \"Open test.html in browser\"",
+    "dev": "python -m http.server 8080",
+    "serve": "python -m http.server 8080"
+  },
+  "keywords": [
+    "nextim",
+    "chat",
+    "messaging",
+    "decentralized",
+    "p2p",
+    "websocket",
+    "instant-messaging"
+  ],
+  "author": "NextIM Team",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/NextIM.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/NextIM/issues"
+  },
+  "homepage": "https://github.com/yourusername/NextIM#readme"
+}

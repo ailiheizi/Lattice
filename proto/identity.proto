@@ -1,0 +1,49 @@
+syntax = "proto3";
+package nextim.identity;
+
+message Identity {
+    bytes ed25519_public_key = 1;
+    bytes curve25519_public_key = 2;
+    string fingerprint = 3;
+    string display_name = 4;
+    uint64 created_at = 5;
+}
+
+message DeviceInfo {
+    string device_id = 1;
+    string user_fingerprint = 2;
+    bytes device_ed25519_key = 3;
+    bytes device_curve25519_key = 4;
+    bytes signature = 5;
+    string device_name = 6;
+    uint64 created_at = 7;
+}
+
+message KeyBundle {
+    string fingerprint = 1;
+    bytes identity_key = 2;
+    repeated bytes one_time_keys = 3;
+    bytes fallback_key = 4;
+    bytes signature = 5;
+}
+
+message IdentityCard {
+    Identity identity = 1;
+    string store_address = 2;
+    string proxy_store_address = 3;
+}
+
+message Contact {
+    Identity identity = 1;
+    string store_address = 2;
+    string proxy_store_address = 3;
+    TrustLevel trust_level = 4;
+    string alias = 5;
+    uint64 added_at = 6;
+}
+
+enum TrustLevel {
+    PUBLIC = 0;
+    TOFU = 1;
+    VERIFIED = 2;
+}

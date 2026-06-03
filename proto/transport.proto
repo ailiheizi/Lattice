@@ -1,0 +1,71 @@
+syntax = "proto3";
+package nextim.transport;
+
+import "message.proto";
+import "identity.proto";
+import "group.proto";
+
+message Frame {
+    uint64 seq = 1;
+    FrameType type = 2;
+
+    oneof body {
+        nextim.message.Envelope message = 10;
+        MessageAck ack = 11;
+        nextim.identity.KeyBundle key_bundle = 20;
+        KeyRequest key_request = 21;
+        nextim.group.RoomEvent room_event = 30;
+        SyncRequest sync_request = 40;
+        SyncResponse sync_response = 41;
+        Ping ping = 50;
+        Pong pong = 51;
+    }
+}
+
+enum FrameType {
+    MESSAGE = 0;
+    ACK = 1;
+    KEY_BUNDLE = 2;
+    KEY_REQUEST = 3;
+    ROOM_EVENT = 4;
+    SYNC_REQUEST = 5;
+    SYNC_RESPONSE = 6;
+    PING = 7;
+    PONG = 8;
+}
+
+message MessageAck {
+    string msg_id = 1;
+    AckStatus status = 2;
+}
+
+enum AckStatus {
+    RECEIVED = 0;
+    DELIVERED = 1;
+    READ = 2;
+    REJECTED = 3;
+}
+
+message KeyRequest {
+    string target_fingerprint = 1;
+    string requester_fingerprint = 2;
+}
+
+message SyncRequest {
+    uint64 since_timestamp = 1;
+    repeated string room_ids = 2;
+}
+
+message SyncResponse {
+    repeated nextim.message.Envelope messages = 1;
+    repeated nextim.group.RoomEvent events = 2;
+    uint64 next_batch = 3;
+}
+
+message Ping {
+    uint64 timestamp = 1;
+}
+
+message Pong {
+    uint64 timestamp = 1;
+}

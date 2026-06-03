@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 测试 - NextIM Store</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1f2937;
+            color: #e5e7eb;
+        }
+        .test-section {
+            background: #374151;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #60a5fa;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        pre {
+            background: #1f2937;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { color: #10b981; }
+        .error { color: #ef4444; }
+        .info { color: #06b6d4; }
+    </style>
+</head>
+<body>
+    <h1>NextIM Store API 测试工具</h1>
+    <p class="info">测试 Store REST API 连接和功能</p>
+
+    <div class="test-section">
+        <h3>连接测试</h3>
+        <button onclick="testConnection()">测试连接</button>
+        <button onclick="testStats()">获取统计</button>
+        <pre id="connection-result">等待测试...</pre>
+    </div>
+
+    <div class="test-section">
+        <h3>消息 API</h3>
+        <button onclick="testMessages()">获取消息列表</button>
+        <button onclick="testMessageCount()">消息计数</button>
+        <pre id="messages-result">等待测试...</pre>
+    </div>
+
+    <div class="test-section">
+        <h3>联系人 API</h3>
+        <button onclick="testContacts()">获取联系人</button>
+        <pre id="contacts-result">等待测试...</pre>
+    </div>
+
+    <div class="test-section">
+        <h3>房间 API</h3>
+        <button onclick="testRooms()">获取房间列表</button>
+        <pre id="rooms-result">等待测试...</pre>
+    </div>
+
+    <div class="test-section">
+        <h3>完整测试</h3>
+        <button onclick="runAllTests()">运行所有测试</button>
+        <pre id="all-results">等待测试...</pre>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:9100';
+
+        async function testConnection() {
+            const result = document.getElementById('connection-result');
+            result.textContent = '测试中...';
+
+            try {
+                const response = await fetch(API_BASE + '/stats');
+                if (response.ok) {
+                    result.innerHTML = '<span class="success">✓ 连接成功!</span>\n状态码: ' + response.status;
+                } else {
+                    result.innerHTML = '<span class="error">✗ 连接失败</span>\n状态码: ' + response.status;
+                }
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ 连接错误</span>\n' + error.message;
+            }
+        }
+
+        async function testStats() {
+            const result = document.getElementById('connection-result');
+            result.textContent = '获取统计中...';
+
+            try {
+                const response = await fetch(API_BASE + '/stats');
+                const data = await response.json();
+                result.innerHTML = '<span class="success">✓ 统计数据获取成功</span>\n' +
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ 获取失败</span>\n' + error.message;
+            }
+        }
+
+        async function testMessages() {
+            const result = document.getElementById('messages-result');
+            result.textContent = '获取消息中...';
+
+            try {
+                const response = await fetch(API_BASE + '/messages?limit=10');
+                const data = await response.json();
+                result.innerHTML = '<span class="success">✓ 消息获取成功</span>\n' +
+                    '消息数量: ' + (Array.isArray(data) ? data.length : 0) + '\n' +
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ 获取失败</span>\n' + error.message;
+            }
+        }
+
+        async function testMessageCount() {
+            const result = document.getElementById('messages-result');
+            result.textContent = '统计消息中...';
+
+            try {
+                const response = await fetch(API_BASE + '/messages');
+                const data = await response.json();
+                const count = Array.isArray(data) ? data.length : 0;
+                result.innerHTML = '<span class="success">✓ 消息统计完成</span>\n' +
+                    '总消息数: ' + count;
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ 统计失败</span>\n' + error.message;
+            }
+        }
+
+        async function testContacts() {
+            const result = document.getElementById('contacts-result');
+            result.textContent = '获取联系人中...';
+
+            try {
+                const response = await fetch(API_BASE + '/contacts');
+                const data = await response.json();
+                result.innerHTML = '<span class="success">✓ 联系人获取成功</span>\n' +
+                    '联系人数量: ' + (Array.isArray(data) ? data.length : 0) + '\n' +
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ 获取失败</span>\n' + error.message;
+            }
+        }
+
+        async function testRooms() {
+            const result = document.getElementById('rooms-result');
+            result.textContent = '获取房间中...';
+
+            try {
+                const response = await fetch(API_BASE + '/rooms');
+                const data = await response.json();
+                result.innerHTML = '<span class="success">✓ 房间获取成功</span>\n' +
+                    '房间数量: ' + (Array.isArray(data) ? data.length : 0) + '\n' +
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                result.innerHTML = '<span class="error">✗ 获取失败</span>\n' + error.message;
+            }
+        }
+
+        async function runAllTests() {
+            const result = document.getElementById('all-results');
+            result.textContent = '运行所有测试...\n\n';
+
+            const tests = [
+                { name: '连接测试', endpoint: '/stats' },
+                { name: '消息列表', endpoint: '/messages?limit=5' },
+                { name: '联系人列表', endpoint: '/contacts' },
+                { name: '房间列表', endpoint: '/rooms' }
+            ];
+
+            let output = '';
+            let passed = 0;
+            let failed = 0;
+
+            for (const test of tests) {
+                try {
+                    const start = Date.now();
+                    const response = await fetch(API_BASE + test.endpoint);
+                    const duration = Date.now() - start;
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        output += `✓ ${test.name} - 成功 (${duration}ms)\n`;
+                        output += `  状态: ${response.status}\n`;
+                        if (Array.isArray(data)) {
+                            output += `  数据量: ${data.length} 项\n`;
+                        }
+                        passed++;
+                    } else {
+                        output += `✗ ${test.name} - 失败\n`;
+                        output += `  状态: ${response.status}\n`;
+                        failed++;
+                    }
+                } catch (error) {
+                    output += `✗ ${test.name} - 错误\n`;
+                    output += `  错误: ${error.message}\n`;
+                    failed++;
+                }
+                output += '\n';
+            }
+
+            output += `\n总结: ${passed} 通过, ${failed} 失败\n`;
+
+            if (failed === 0) {
+                result.innerHTML = '<span class="success">' + output + '</span>';
+            } else {
+                result.innerHTML = '<span class="error">' + output + '</span>';
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(testConnection, 500);
+        });
+    </script>
+</body>
+</html>

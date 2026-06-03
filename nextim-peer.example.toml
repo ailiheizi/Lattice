@@ -1,0 +1,20 @@
+# NextIM Peer 中转节点配置文件示例
+# 复制为 nextim-peer.toml 并修改
+
+# 监听地址
+listen_addr = "0.0.0.0:9200"
+
+# REST API 监听地址
+api_addr = "0.0.0.0:9201"
+
+# 缓存最大条目数
+max_cache_entries = 10000
+
+# 缓存 TTL（毫秒），超时后转投代收 Store
+cache_ttl_ms = 3600000
+
+# 超时检查间隔（毫秒）
+eviction_interval_ms = 60000
+
+# 代收 Store 地址列表（超时消息转投到这些 Store）
+proxy_stores = []

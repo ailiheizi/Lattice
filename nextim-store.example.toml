@@ -1,0 +1,17 @@
+# NextIM Store 配置文件示例
+# 复制为 nextim-store.toml 并修改
+
+# WebSocket 服务监听地址（其他 Store 节点连接用）
+ws_addr = "0.0.0.0:9100"
+
+# REST API 监听地址（手机端/Web 端调用）
+api_addr = "0.0.0.0:9101"
+
+# 数据存储目录（SQLite + Tantivy 索引）
+data_dir = "./data"
+
+# 显示名称
+display_name = "My Store"
+
+# 代收 Store 地址（离线时消息暂存到这里，留空则不启用）
+proxy_store_address = ""

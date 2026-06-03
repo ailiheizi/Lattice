@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  store:
+    build:
+      context: .
+      dockerfile: Dockerfile.store
+    container_name: nextim-store
+    ports:
+      - "9100:9100"
+    volumes:
+      - ./config/store.toml:/etc/nextim/store.toml:ro
+      - store-data:/var/lib/nextim/store
+    environment:
+      - RUST_LOG=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  peer:
+    build:
+      context: .
+      dockerfile: Dockerfile.peer
+    container_name: nextim-peer
+    ports:
+      - "9200:9200"
+    volumes:
+      - ./config/peer.toml:/etc/nextim/peer.toml:ro
+    environment:
+      - RUST_LOG=info
+    restart: unless-stopped
+
+volumes:
+  store-data:
+    driver: local

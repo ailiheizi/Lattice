@@ -1,0 +1,26 @@
+[package]
+name = "nextim-store"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+nextim-proto = { path = "../nextim-proto" }
+nextim-core = { path = "../nextim-core" }
+nextim-crypto = { path = "../nextim-crypto" }
+nextim-transport = { path = "../nextim-transport" }
+nextim-storage = { path = "../nextim-storage" }
+tokio.workspace = true
+axum.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+prost.workspace = true
+uuid.workspace = true
+futures-util = "0.3"
+tokio-tungstenite.workspace = true
+tower-http = { version = "0.5", features = ["cors"] }
+toml = "0.8"
+base64.workspace = true
+ed25519-dalek.workspace = true

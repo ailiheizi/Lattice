@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextIM Store 管理面板</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>NextIM Store</h1>
+                <p>管理面板</p>
+            </div>
+            <nav class="nav">
+                <a href="#dashboard" class="nav-link active" data-page="dashboard">
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                    </svg>
+                    <span>仪表板</span>
+                </a>
+                <a href="#messages" class="nav-link" data-page="messages">
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/>
+                        <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z"/>
+                    </svg>
+                    <span>消息管理</span>
+                </a>
+                <a href="#contacts" class="nav-link" data-page="contacts">
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                    </svg>
+                    <span>联系人</span>
+                </a>
+                <a href="#rooms" class="nav-link" data-page="rooms">
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd"/>
+                    </svg>
+                    <span>房间管理</span>
+                </a>
+                <a href="#logs" class="nav-link" data-page="logs">
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm11 1H6v8l4-2 4 2V6z" clip-rule="evenodd"/>
+                    </svg>
+                    <span>日志</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="status-indicator" id="connection-status"></div>
+                <span class="status-text">Store 连接状态</span>
+            </div>
+        </aside>
+
+        <main class="main-content">
+
+            <!-- Dashboard Page -->
+            <div id="dashboard-page" class="page active">
+                <div class="page-header">
+                    <h2>仪表板</h2>
+                    <p>NextIM Store 实时统计</p>
+                </div>
+
+                <div id="dashboard-content">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-label">总消息数</span>
+                                <div class="stat-icon primary">
+                                    <svg fill="currentColor" viewBox="0 0 20 20" width="20" height="20">
+                                        <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="stat-value" id="total-messages">0</div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-label">联系人</span>
+                                <div class="stat-icon success">
+                                    <svg fill="currentColor" viewBox="0 0 20 20" width="20" height="20">
+                                        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="stat-value" id="total-contacts">0</div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-label">房间数</span>
+                                <div class="stat-icon warning">
+                                    <svg fill="currentColor" viewBox="0 0 20 20" width="20" height="20">
+                                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="stat-value" id="total-rooms">0</div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-label">存储使用</span>
+                                <div class="stat-icon info">
+                                    <svg fill="currentColor" viewBox="0 0 20 20" width="20" height="20">
+                                        <path d="M3 12v3c0 1.657 3.134 3 7 3s7-1.343 7-3v-3c0 1.657-3.134 3-7 3s-7-1.343-7-3z"/>
+                                        <path d="M3 7v3c0 1.657 3.134 3 7 3s7-1.343 7-3V7c0 1.657-3.134 3-7 3S3 8.657 3 7z"/>
+                                        <path d="M17 5c0 1.657-3.134 3-7 3S3 6.657 3 5s3.134-3 7-3 7 1.343 7 3z"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="stat-value" id="storage-used">0 MB</div>
+                            <div class="storage-info">
+                                <div class="storage-bar-container">
+                                    <div class="storage-bar bg-success" style="width: 0%"></div>
+                                </div>
+                                <div class="storage-text">0 MB / 0 MB (0%)</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3 class="chart-title">消息趋势</h3>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="messageChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3 class="chart-title">存储分布</h3>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="storageChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <div class="chart-header">
+                                <h3 class="chart-title">活动统计</h3>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="activityChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages Page -->
+            <div id="messages-page" class="page">
+                <div class="page-header">
+                    <h2>消息管理</h2>
+                    <p>查看和管理所有消息</p>
+                </div>
+
+                <div class="toolbar">
+                    <div class="search-box">
+                        <input type="text" id="message-search" placeholder="搜索消息...">
+                    </div>
+                    <div class="toolbar-actions">
+                        <button class="btn btn-outline" id="refresh-messages">
+                            <svg fill="currentColor" viewBox="0 0 20 20" width="16" height="16">
+                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+                            </svg>
+                            刷新
+                        </button>
+                    </div>
+                </div>
+
+                <div id="messages-list"></div>
+            </div>
+
+            <!-- Contacts Page -->
+            <div id="contacts-page" class="page">
+                <div class="page-header">
+                    <h2>联系人管理</h2>
+                    <p>管理所有联系人</p>
+                </div>
+
+                <div class="toolbar">
+                    <div class="search-box">
+                        <input type="text" id="contact-search" placeholder="搜索联系人...">
+                    </div>
+                    <div class="toolbar-actions">
+                        <button class="btn btn-outline" id="refresh-contacts">
+                            <svg fill="currentColor" viewBox="0 0 20 20" width="16" height="16">
+                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+                            </svg>
+                            刷新
+                        </button>
+                    </div>
+                </div>
+
+                <div id="contacts-list"></div>
+            </div>
+
+            <!-- Rooms Page -->
+            <div id="rooms-page" class="page">
+                <div class="page-header">
+                    <h2>房间管理</h2>
+                    <p>管理所有聊天房间</p>
+                </div>
+
+                <div class="toolbar">
+                    <div class="search-box">
+                        <input type="text" id="room-search" placeholder="搜索房间...">
+                    </div>
+                    <div class="toolbar-actions">
+                        <button class="btn btn-outline" id="refresh-rooms">
+                            <svg fill="currentColor" viewBox="0 0 20 20" width="16" height="16">
+                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+                            </svg>
+                            刷新
+                        </button>
+                    </div>
+                </div>
+
+                <div id="rooms-list"></div>
+            </div>
+
+            <!-- Logs Page -->
+            <div id="logs-page" class="page">
+                <div class="page-header">
+                    <h2>系统日志</h2>
+                    <p>查看系统运行日志</p>
+                </div>
+
+                <div class="toolbar">
+                    <div class="toolbar-actions">
+                        <select id="log-level-filter">
+                            <option value="all">所有级别</option>
+                            <option value="error">错误</option>
+                            <option value="warning">警告</option>
+                            <option value="info">信息</option>
+                            <option value="debug">调试</option>
+                        </select>
+                        <button class="btn btn-outline" id="refresh-logs">
+                            <svg fill="currentColor" viewBox="0 0 20 20" width="16" height="16">
+                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+                            </svg>
+                            刷新
+                        </button>
+                        <button class="btn btn-outline" id="clear-logs">清空</button>
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" id="auto-scroll-toggle" checked>
+                            <span>自动滚动</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="logs-container" id="logs-container"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Load scripts in correct order -->
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/messages.js"></script>
+    <script src="js/contacts.js"></script>
+    <script src="js/rooms.js"></script>
+    <script src="js/logs.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

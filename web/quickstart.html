@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NextIM - Quick Start Guide</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.container {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  max-width: 800px;
+  width: 100%;
+  overflow: hidden;
+}
+.header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 40px;
+  text-align: center;
+}
+.header h1 {
+  font-size: 36px;
+  margin-bottom: 10px;
+}
+.header p {
+  font-size: 16px;
+  opacity: 0.9;
+}
+.content {
+  padding: 40px;
+}
+.step {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+.step h2 {
+  color: #667eea;
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+.step p {
+  color: #555;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+.code {
+  background: #2d3748;
+  color: #68d391;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  margin: 10px 0;
+  overflow-x: auto;
+}
+.button-group {
+  display: flex;
+  gap: 15px;
+  margin-top: 30px;
+  flex-wrap: wrap;
+}
+.btn {
+  flex: 1;
+  min-width: 200px;
+  padding: 15px 30px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  text-decoration: none;
+  text-align: center;
+  display: inline-block;
+}
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+}
+.btn-secondary {
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+}
+.btn-secondary:hover {
+  background: #667eea;
+  color: white;
+}
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+.feature {
+  text-align: center;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+.feature-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+}
+.feature h3 {
+  font-size: 16px;
+  color: #333;
+  margin-bottom: 5px;
+}
+.feature p {
+  font-size: 13px;
+  color: #666;
+}
+.status-check {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  padding: 15px;
+  margin: 20px 0;
+}
+.status-check h3 {
+  color: #856404;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  font-size: 14px;
+}
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ccc;
+}
+.status-indicator.checking {
+  background: #ffc107;
+  animation: pulse 1s infinite;
+}
+.status-indicator.online {
+  background: #28a745;
+}
+.status-indicator.offline {
+  background: #dc3545;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.footer {
+  background: #f8f9fa;
+  padding: 20px 40px;
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+}
+.footer a {
+  color: #667eea;
+  text-decoration: none;
+}
+.footer a:hover {
+  text-decoration: underline;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🚀 NextIM Web Client</h1>
+    <p>Decentralized Instant Messaging - Quick Start Guide</p>
+  </div>
+
+  <div class="content">
+    <div class="status-check">
+      <h3>⚡ System Status Check</h3>
+      <div class="status-item">
+        <div class="status-indicator" id="api-indicator"></div>
+        <span id="api-status-text">Checking Store API...</span>
+      </div>
+      <div class="status-item">
+        <div class="status-indicator" id="ws-indicator"></div>
+        <span id="ws-status-text">Checking WebSocket...</span>
+      </div>
+    </div>
+
+    <div class="step">
+      <h2>📋 Step 1: Start the Store Node</h2>
+      <p>First, make sure the NextIM Store service is running:</p>
+      <div class="code">cargo run --bin nextim-store</div>
+      <p>The Store will start on:</p>
+      <ul style="margin-left: 20px; margin-top: 10px;">
+        <li>WebSocket: <code>ws://127.0.0.1:9100</code></li>
+        <li>REST API: <code>http://127.0.0.1:9101</code></li>
+      </ul>
+    </div>
+
+    <div class="step">
+      <h2>🌐 Step 2: Open the Web Client</h2>
+      <p>You can access the web client in two ways:</p>
+      <p><strong>Option A:</strong> Direct file access (recommended for development)</p>
+      <div class="code">file:///path/to/NextIM/web/index.html</div>
+      <p><strong>Option B:</strong> HTTP server (recommended for testing)</p>
+      <div class="code">python -m http.server 8080 --directory web</div>
+      <p>Then open: <code>http://localhost:8080</code></p>
+    </div>
+
+    <div class="step">
+      <h2>🔌 Step 3: Connect to Store</h2>
+      <p>In the web client sidebar:</p>
+      <ol style="margin-left: 20px; margin-top: 10px; line-height: 1.8;">
+        <li>Enter Store API URL: <code>http://127.0.0.1:9101</code></li>
+        <li>Enter your username (e.g., "alice")</li>
+        <li>Click the <strong>Connect</strong> button</li>
+        <li>Wait for status indicators to turn green</li>
+      </ol>
+    </div>
+
+    <div class="step">
+      <h2>💬 Step 4: Start Chatting!</h2>
+      <p>Once connected, you can:</p>
+      <ul style="margin-left: 20px; margin-top: 10px; line-height: 1.8;">
+        <li>Create a new room in the Rooms tab</li>
+        <li>Send messages in the chat area</li>
+        <li>Add contacts in the Contacts tab</li>
+        <li>Search messages using the search bar</li>
+        <li>Customize settings (theme, notifications)</li>
+      </ul>
+    </div>
+
+    <h2 style="margin-top: 40px; margin-bottom: 20px; color: #667eea;">✨ Key Features</h2>
+    <div class="feature-grid">
+      <div class="feature">
+        <div class="feature-icon">💬</div>
+        <h3>Real-time Chat</h3>
+        <p>WebSocket + REST API</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔒</div>
+        <h3>Encrypted Rooms</h3>
+        <p>End-to-end security</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔍</div>
+        <h3>Full-text Search</h3>
+        <p>Find any message</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🎨</div>
+        <h3>Theme Toggle</h3>
+        <p>Light & Dark modes</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔔</div>
+        <h3>Notifications</h3>
+        <p>Desktop & sound alerts</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📱</div>
+        <h3>Responsive</h3>
+        <p>Mobile-friendly UI</p>
+      </div>
+    </div>
+
+    <div class="button-group">
+      <a href="index.html" class="btn btn-primary">🚀 Launch Web Client</a>
+      <a href="test.html" class="btn btn-secondary">🧪 Run Tests</a>
+    </div>
+
+    <div class="button-group">
+      <a href="README.md" class="btn btn-secondary">📖 Documentation</a>
+      <a href="FEATURES.md" class="btn btn-secondary">📋 Feature List</a>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>NextIM - Decentralized Instant Messaging System</p>
+    <p><a href="https://github.com/yourusername/NextIM" target="_blank">GitHub</a> |
+       <a href="../README.md">Project README</a> |
+       <a href="../docs/api.md">API Docs</a></p>
+  </div>
+</div>
+
+<script>
+const API_URL = 'http://127.0.0.1:9101';
+const WS_URL = 'ws://127.0.0.1:9100';
+
+async function checkAPIStatus() {
+  const indicator = document.getElementById('api-indicator');
+  const statusText = document.getElementById('api-status-text');
+
+  indicator.className = 'status-indicator checking';
+  statusText.textContent = 'Checking Store API...';
+
+  try {
+    const response = await fetch(`${API_URL}/health`, {
+      method: 'GET',
+      mode: 'cors'
+    });
+    const text = await response.text();
+
+    if (text === 'ok') {
+      indicator.className = 'status-indicator online';
+      statusText.innerHTML = '✓ Store API is <strong>online</strong> at ' + API_URL;
+    } else {
+      indicator.className = 'status-indicator offline';
+      statusText.innerHTML = '✗ Store API returned unexpected response';
+    }
+  } catch (error) {
+    indicator.className = 'status-indicator offline';
+    statusText.innerHTML = '✗ Store API is <strong>offline</strong> - Please start the Store node';
+  }
+}
+
+function checkWebSocketStatus() {
+  const indicator = document.getElementById('ws-indicator');
+  const statusText = document.getElementById('ws-status-text');
+
+  indicator.className = 'status-indicator checking';
+  statusText.textContent = 'Checking WebSocket...';
+
+  try {
+    const ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      indicator.className = 'status-indicator online';
+      statusText.innerHTML = '✓ WebSocket is <strong>online</strong> at ' + WS_URL;
+      ws.close();
+    };
+
+    ws.onerror = () => {
+      indicator.className = 'status-indicator offline';
+      statusText.innerHTML = '✗ WebSocket is <strong>offline</strong> - Please start the Store node';
+    };
+
+    // Timeout after 5 seconds
+    setTimeout(() => {
+      if (indicator.className.includes('checking')) {
+        indicator.className = 'status-indicator offline';
+        statusText.innerHTML = '✗ WebSocket connection timeout';
+        ws.close();
+      }
+    }, 5000);
+  } catch (error) {
+    indicator.className = 'status-indicator offline';
+    statusText.innerHTML = '✗ WebSocket connection failed: ' + error.message;
+  }
+}
+
+// Run status checks on page load
+window.addEventListener('load', () => {
+  checkAPIStatus();
+  checkWebSocketStatus();
+
+  // Recheck every 10 seconds
+  setInterval(() => {
+    checkAPIStatus();
+    checkWebSocketStatus();
+  }, 10000);
+});
+</script>
+</body>
+</html>

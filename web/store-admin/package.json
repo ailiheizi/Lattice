@@ -1,0 +1,25 @@
+{
+  "name": "nextim-store-admin",
+  "version": "1.0.0",
+  "description": "NextIM Store 管理面板 - 现代化的 Web 管理界面",
+  "main": "index.html",
+  "scripts": {
+    "start": "python -m http.server 8080",
+    "dev": "npx http-server -p 8080 -c-1",
+    "test": "echo \"打开 test.html 进行 API 测试\"",
+    "lint": "echo \"No linting configured\""
+  },
+  "keywords": [
+    "nextim",
+    "store",
+    "admin",
+    "dashboard",
+    "management"
+  ],
+  "author": "NextIM Team",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

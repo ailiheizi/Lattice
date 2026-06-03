@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextIM Peer 监控面板</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>NextIM Peer 监控面板</h1>
+            <div class="status-indicator" id="connectionStatus">
+                <span class="dot"></span>
+                <span class="text">连接中...</span>
+            </div>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="dashboard">仪表板</button>
+            <button class="tab-btn" data-tab="performance">性能指标</button>
+            <button class="tab-btn" data-tab="connections">连接管理</button>
+            <button class="tab-btn" data-tab="cache">缓存管理</button>
+            <button class="tab-btn" data-tab="config">配置</button>
+            <button class="tab-btn" data-tab="logs">日志</button>
+        </nav>
+
+        <main>
+            <!-- 仪表板 -->
+            <section id="dashboard" class="tab-content active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📨</div>
+                        <div class="stat-info">
+                            <div class="stat-label">缓存消息数</div>
+                            <div class="stat-value" id="cachedMessages">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔄</div>
+                        <div class="stat-info">
+                            <div class="stat-label">中转总数</div>
+                            <div class="stat-value" id="totalRelayed">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📤</div>
+                        <div class="stat-info">
+                            <div class="stat-label">已投递</div>
+                            <div class="stat-value" id="totalDelivered">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏱️</div>
+                        <div class="stat-info">
+                            <div class="stat-label">平均延迟</div>
+                            <div class="stat-value" id="avgLatency">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔗</div>
+                        <div class="stat-info">
+                            <div class="stat-label">活跃连接</div>
+                            <div class="stat-value" id="activeConnections">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⚠️</div>
+                        <div class="stat-info">
+                            <div class="stat-label">错误数</div>
+                            <div class="stat-value" id="errorCount">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>消息中转速率</h3>
+                        <canvas id="relayRateChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>缓存使用情况</h3>
+                        <canvas id="cacheUsageChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3>系统信息</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">运行时间:</span>
+                            <span class="info-value" id="uptime">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">监听地址:</span>
+                            <span class="info-value" id="listenAddr">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">缓存容量:</span>
+                            <span class="info-value" id="maxCache">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">TTL:</span>
+                            <span class="info-value" id="cacheTTL">-</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 性能指标 -->
+            <section id="performance" class="tab-content">
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>延迟分布</h3>
+                        <canvas id="latencyChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>吞吐量</h3>
+                        <canvas id="throughputChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <h3>性能统计</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>指标</th>
+                                <th>当前值</th>
+                                <th>平均值</th>
+                                <th>最大值</th>
+                                <th>最小值</th>
+                            </tr>
+                        </thead>
+                        <tbody id="perfStatsTable">
+                            <tr><td colspan="5">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 连接管理 -->
+            <section id="connections" class="tab-content">
+                <div class="toolbar">
+                    <button class="btn btn-secondary" onclick="refreshConnections()">刷新</button>
+                </div>
+
+                <div class="table-card">
+                    <h3>活跃连接</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>连接ID</th>
+                                <th>远程地址</th>
+                                <th>连接时间</th>
+                                <th>消息数</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activeConnectionsTable">
+                            <tr><td colspan="5">暂无活跃连接</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-card">
+                    <h3>连接历史</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>远程地址</th>
+                                <th>连接时间</th>
+                                <th>断开时间</th>
+                                <th>持续时长</th>
+                                <th>消息数</th>
+                            </tr>
+                        </thead>
+                        <tbody id="connectionHistoryTable">
+                            <tr><td colspan="5">暂无历史记录</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 缓存管理 -->
+            <section id="cache" class="tab-content">
+                <div class="toolbar">
+                    <button class="btn btn-secondary" onclick="refreshCache()">刷新</button>
+                    <button class="btn btn-danger" onclick="clearCache()">清空缓存</button>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-info">
+                            <div class="stat-label">当前条目数</div>
+                            <div class="stat-value" id="cacheEntries">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-info">
+                            <div class="stat-label">使用率</div>
+                            <div class="stat-value" id="cacheUsage">-</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏰</div>
+                        <div class="stat-info">
+                            <div class="stat-label">最旧条目</div>
+                            <div class="stat-value" id="oldestEntry">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <h3>缓存条目</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>接收方指纹</th>
+                                <th>消息数</th>
+                                <th>最早时间</th>
+                                <th>最晚时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cacheEntriesTable">
+                            <tr><td colspan="5">缓存为空</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 配置 -->
+            <section id="config" class="tab-content">
+                <div class="config-card">
+                    <h3>当前配置</h3>
+                    <form id="configForm">
+                        <div class="form-group">
+                            <label for="configListenAddr">监听地址</label>
+                            <input type="text" id="configListenAddr" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="configMaxCache">最大缓存条目</label>
+                            <input type="number" id="configMaxCache" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="configTTL">缓存TTL (毫秒)</label>
+                            <input type="number" id="configTTL" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="configEvictionInterval">清理间隔 (毫秒)</label>
+                            <input type="number" id="configEvictionInterval" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="configProxyStores">代收Store列表</label>
+                            <textarea id="configProxyStores" rows="4" readonly></textarea>
+                        </div>
+                    </form>
+                    <p class="config-note">注意: 配置修改需要重启服务生效</p>
+                </div>
+            </section>
+
+            <!-- 日志 -->
+            <section id="logs" class="tab-content">
+                <div class="toolbar">
+                    <button class="btn btn-secondary" onclick="refreshLogs()">刷新</button>
+                    <button class="btn btn-secondary" onclick="clearLogs()">清空显示</button>
+                    <select id="logLevel" onchange="filterLogs()">
+                        <option value="all">全部级别</option>
+                        <option value="error">错误</option>
+                        <option value="warn">警告</option>
+                        <option value="info" selected>信息</option>
+                        <option value="debug">调试</option>
+                    </select>
+                    <label>
+                        <input type="checkbox" id="autoScroll" checked> 自动滚动
+                    </label>
+                </div>
+
+                <div class="log-viewer" id="logViewer">
+                    <div class="log-entry log-info">
+                        <span class="log-time">--:--:--</span>
+                        <span class="log-level">INFO</span>
+                        <span class="log-message">等待日志数据...</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/performance.js"></script>
+    <script src="js/connections.js"></script>
+    <script src="js/cache.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

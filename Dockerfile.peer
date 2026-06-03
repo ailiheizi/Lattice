@@ -1,0 +1,43 @@
+# Dockerfile for NextIM Peer Node
+
+FROM rust:1.75 as builder
+
+WORKDIR /app
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY proto ./proto
+COPY crates ./crates
+
+# Build release binary
+RUN cargo build --release --bin nextim-peer
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create user
+RUN useradd -m -u 1000 nextim && \
+    mkdir -p /var/lib/nextim && \
+    mkdir -p /etc/nextim && \
+    chown -R nextim:nextim /var/lib/nextim
+
+# Copy binary
+COPY --from=builder /app/target/release/nextim-peer /usr/local/bin/
+
+# Copy example config
+COPY nextim-peer.example.toml /etc/nextim/peer.toml.example
+
+USER nextim
+WORKDIR /var/lib/nextim
+
+EXPOSE 9200
+
+VOLUME ["/etc/nextim"]
+
+CMD ["nextim-peer"]

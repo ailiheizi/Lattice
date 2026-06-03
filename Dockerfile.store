@@ -1,0 +1,46 @@
+# Dockerfile for NextIM Store Node
+
+FROM rust:1.75 as builder
+
+WORKDIR /app
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY proto ./proto
+COPY crates ./crates
+
+# Build release binary
+RUN cargo build --release --bin nextim-store
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create user
+RUN useradd -m -u 1000 nextim && \
+    mkdir -p /var/lib/nextim/store && \
+    mkdir -p /etc/nextim && \
+    chown -R nextim:nextim /var/lib/nextim
+
+# Copy binary
+COPY --from=builder /app/target/release/nextim-store /usr/local/bin/
+
+# Copy example config
+COPY nextim-store.example.toml /etc/nextim/store.toml.example
+
+USER nextim
+WORKDIR /var/lib/nextim
+
+EXPOSE 9100
+
+VOLUME ["/var/lib/nextim/store", "/etc/nextim"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:9100/health || exit 1
+
+CMD ["nextim-store"]

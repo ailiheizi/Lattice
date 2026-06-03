@@ -1,0 +1,60 @@
+syntax = "proto3";
+package nextim.message;
+
+message Envelope {
+    string msg_id = 1;
+    string sender_fingerprint = 2;
+    string recipient_fingerprint = 3;
+    uint64 timestamp = 4;
+    bytes signature = 5;
+    bytes payload_hash = 6;
+
+    oneof payload {
+        PlainPayload plain = 10;
+        EncryptedPayload encrypted = 11;
+    }
+}
+
+message PlainPayload {
+    MessageContent content = 1;
+}
+
+message EncryptedPayload {
+    bytes ciphertext = 1;
+    string session_id = 2;
+    uint32 message_index = 3;
+    EncryptionType encryption_type = 4;
+}
+
+enum EncryptionType {
+    OLM = 0;
+    MEGOLM = 1;
+}
+
+message MessageContent {
+    MessageType type = 1;
+    string text = 2;
+    bytes media = 3;
+    string media_type = 4;
+    string reply_to = 5;
+}
+
+enum MessageType {
+    TEXT = 0;
+    IMAGE = 1;
+    FILE = 2;
+    AUDIO = 3;
+    VIDEO = 4;
+    SYSTEM = 5;
+}
+
+message Message {
+    string msg_id = 1;
+    string room_id = 2;
+    string sender_fingerprint = 3;
+    uint64 timestamp = 4;
+    MessageContent content = 5;
+    bool encrypted = 6;
+    bool verified = 7;
+    EncryptedPayload encrypted_payload = 8;
+}

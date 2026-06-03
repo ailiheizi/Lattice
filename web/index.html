@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NextIM Web Client</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --bg-hover: #1c2128;
+  --border-color: #30363d;
+  --text-primary: #c9d1d9;
+  --text-secondary: #8b949e;
+  --text-muted: #484f58;
+  --accent-blue: #58a6ff;
+  --accent-green: #238636;
+  --accent-red: #da3633;
+  --accent-orange: #ffa657;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg-primary); color: var(--text-primary); height: 100vh; display: flex; flex-direction: column; transition: background 0.3s, color 0.3s; }
+body.light-theme {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #eaeef2;
+  --bg-hover: #e1e4e8;
+  --border-color: #d0d7de;
+  --text-primary: #24292f;
+  --text-secondary: #57606a;
+  --text-muted: #8c959f;
+  --accent-blue: #0969da;
+  --accent-green: #1a7f37;
+  --accent-red: #cf222e;
+  --accent-orange: #bc4c00;
+}
+
+.header { background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); padding: 12px 20px; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 18px; color: var(--accent-blue); }
+.header .status { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+.status.connected { background: var(--accent-green); color: #fff; }
+.status.disconnected { background: var(--accent-red); color: #fff; }
+.status.ws-connected { background: #1f6feb; color: #fff; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.icon-btn { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.main { display: flex; flex: 1; overflow: hidden; }
+
+.sidebar { width: 280px; background: var(--bg-secondary); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; transition: transform 0.3s; }
+.sidebar.collapsed { transform: translateX(-100%); }
+.sidebar h3 { padding: 12px 16px; font-size: 13px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--bg-tertiary); }
+.tab-bar { display: flex; border-bottom: 1px solid var(--border-color); }
+.tab { flex: 1; padding: 10px; text-align: center; font-size: 12px; cursor: pointer; color: var(--text-secondary); border-bottom: 2px solid transparent; transition: all 0.2s; }
+.tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); font-weight: 500; }
+.tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+.tab-content { flex: 1; overflow-y: auto; }
+.room-list, .contact-list { flex: 1; overflow-y: auto; }
+.room-item, .contact-item { padding: 12px 16px; cursor: pointer; border-left: 3px solid transparent; transition: all 0.15s; position: relative; }
+.room-item:hover, .contact-item:hover { background: var(--bg-hover); }
+.room-item.active { background: var(--bg-hover); border-left-color: var(--accent-blue); }
+.room-item .name, .contact-item .name { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.room-item .preview, .contact-item .detail { font-size: 12px; color: var(--text-secondary); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-item .unread-badge { position: absolute; right: 12px; top: 12px; background: var(--accent-red); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
+.contact-item .trust { font-size: 10px; padding: 2px 6px; border-radius: 8px; }
+.trust.verified { background: var(--accent-green); color: #fff; }
+.trust.tofu { background: #9e6a03; color: #fff; }
+.trust.public { background: var(--text-muted); color: #fff; }
+.contact-item .online-status { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); display: inline-block; }
+.contact-item .online-status.online { background: var(--accent-green); }
+
+.new-item { padding: 12px 16px; border-top: 1px solid var(--border-color); }
+.new-item input { width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; margin-bottom: 6px; transition: border 0.2s; }
+.new-item input:focus { outline: none; border-color: var(--accent-blue); }
+.new-item button { width: 100%; padding: 8px; background: var(--accent-green); border: none; border-radius: 6px; color: #fff; cursor: pointer; font-size: 13px; font-weight: 500; transition: background 0.2s; }
+.new-item button:hover { background: #2ea043; }
+
+.chat { flex: 1; display: flex; flex-direction: column; position: relative; }
+.chat-header { padding: 14px 20px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+.chat-header .room-name { font-size: 16px; font-weight: 600; }
+.chat-header .room-info { font-size: 11px; color: var(--text-secondary); margin-top: 2px; display: flex; align-items: center; gap: 8px; }
+.chat-header .room-actions { display: flex; gap: 6px; }
+
+.search-bar { display: flex; gap: 8px; align-items: center; }
+.search-bar input { padding: 6px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; width: 200px; transition: all 0.2s; }
+.search-bar input:focus { outline: none; border-color: var(--accent-blue); width: 250px; }
+.search-bar button { padding: 6px 12px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.search-bar button:hover { background: var(--bg-hover); }
+
+.messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; }
+.messages::-webkit-scrollbar { width: 8px; }
+.messages::-webkit-scrollbar-track { background: var(--bg-primary); }
+.messages::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+.messages::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+.msg { max-width: 65%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; word-break: break-word; animation: fadeIn 0.2s; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.msg.sent { align-self: flex-end; background: var(--accent-blue); color: #fff; border-bottom-right-radius: 4px; }
+.msg.received { align-self: flex-start; background: var(--bg-tertiary); border-bottom-left-radius: 4px; }
+.msg .meta { font-size: 11px; opacity: 0.7; margin-top: 4px; display: flex; justify-content: space-between; align-items: center; }
+.msg.system { align-self: center; background: transparent; color: var(--text-secondary); font-size: 12px; font-style: italic; max-width: 80%; text-align: center; }
+.msg .sender-name { font-weight: 600; font-size: 12px; margin-bottom: 2px; opacity: 0.9; }
+.msg-actions { display: none; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); gap: 4px; }
+.msg:hover .msg-actions { display: flex; }
+.msg-action-btn { background: rgba(0,0,0,0.3); border: none; color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.msg-action-btn:hover { background: rgba(0,0,0,0.5); }
+
+.search-results { background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 6px; margin: 8px 20px; padding: 8px; max-height: 200px; overflow-y: auto; }
+.search-results .result-item { padding: 8px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; transition: background 0.2s; }
+.search-results .result-item:hover { background: var(--border-color); }
+.search-results .highlight { color: var(--accent-orange); font-weight: 500; }
+
+.input-area { padding: 14px 20px; background: var(--bg-secondary); border-top: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; }
+.input-area .emoji-btn { background: transparent; border: none; font-size: 20px; cursor: pointer; padding: 6px; border-radius: 6px; transition: background 0.2s; }
+.input-area .emoji-btn:hover { background: var(--bg-hover); }
+.input-area input { flex: 1; padding: 12px 16px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 14px; outline: none; transition: border 0.2s; }
+.input-area input:focus { border-color: var(--accent-blue); }
+.input-area .attach-btn { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); padding: 10px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.input-area .attach-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.input-area button.send-btn { padding: 12px 24px; background: var(--accent-green); border: none; border-radius: 8px; color: #fff; font-size: 14px; cursor: pointer; font-weight: 500; transition: background 0.2s; }
+.input-area button.send-btn:hover { background: #2ea043; }
+.input-area button.send-btn:disabled { background: var(--bg-tertiary); color: var(--text-muted); cursor: not-allowed; }
+
+.config-panel { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.config-panel label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+.config-panel input { padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; transition: border 0.2s; }
+.config-panel input:focus { outline: none; border-color: var(--accent-blue); }
+.config-panel button { padding: 8px 16px; background: var(--accent-green); border: none; border-radius: 6px; color: #fff; cursor: pointer; font-size: 13px; font-weight: 500; margin-top: 6px; transition: background 0.2s; }
+.config-panel button:hover { background: #2ea043; }
+.config-panel .info { font-size: 11px; color: var(--accent-blue); margin-top: 4px; word-break: break-all; }
+
+.empty-state { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--text-muted); font-size: 16px; flex-direction: column; gap: 10px; }
+.empty-state svg { width: 64px; height: 64px; opacity: 0.3; }
+
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; }
+.modal-overlay.active { display: flex; }
+.modal { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.modal-header h2 { font-size: 18px; color: var(--text-primary); }
+.modal-close { background: transparent; border: none; color: var(--text-secondary); font-size: 24px; cursor: pointer; padding: 0; width: 32px; height: 32px; border-radius: 6px; transition: all 0.2s; }
+.modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+.modal-body { display: flex; flex-direction: column; gap: 16px; }
+.modal-field { display: flex; flex-direction: column; gap: 6px; }
+.modal-field label { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+.modal-field input, .modal-field select, .modal-field textarea { padding: 10px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 14px; font-family: inherit; transition: border 0.2s; }
+.modal-field input:focus, .modal-field select:focus, .modal-field textarea:focus { outline: none; border-color: var(--accent-blue); }
+.modal-field textarea { resize: vertical; min-height: 80px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 10px; }
+.modal-actions button { flex: 1; padding: 10px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+.modal-actions .btn-primary { background: var(--accent-green); color: #fff; }
+.modal-actions .btn-primary:hover { background: #2ea043; }
+.modal-actions .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); }
+.modal-actions .btn-secondary:hover { background: var(--bg-hover); }
+
+.settings-section { margin-bottom: 24px; }
+.settings-section h3 { font-size: 14px; color: var(--text-primary); margin-bottom: 12px; font-weight: 600; }
+.settings-option { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 8px; }
+.settings-option label { font-size: 13px; color: var(--text-primary); }
+.settings-option .description { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.toggle-switch { position: relative; width: 44px; height: 24px; background: var(--bg-tertiary); border-radius: 12px; cursor: pointer; transition: background 0.2s; }
+.toggle-switch.active { background: var(--accent-green); }
+.toggle-switch::after { content: ''; position: absolute; width: 18px; height: 18px; background: #fff; border-radius: 50%; top: 3px; left: 3px; transition: transform 0.2s; }
+.toggle-switch.active::after { transform: translateX(20px); }
+
+.notification { position: fixed; top: 20px; right: 20px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.3); display: none; align-items: center; gap: 12px; z-index: 2000; animation: slideIn 0.3s; }
+@keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.notification.show { display: flex; }
+.notification.success { border-left: 4px solid var(--accent-green); }
+.notification.error { border-left: 4px solid var(--accent-red); }
+.notification.info { border-left: 4px solid var(--accent-blue); }
+.notification-content { flex: 1; }
+.notification-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.notification-message { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+.emoji-picker { position: absolute; bottom: 70px; left: 20px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; display: none; box-shadow: 0 4px 16px rgba(0,0,0,0.3); z-index: 100; }
+.emoji-picker.show { display: block; }
+.emoji-picker .emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.emoji-picker .emoji-item { font-size: 24px; cursor: pointer; padding: 6px; border-radius: 4px; transition: background 0.2s; text-align: center; }
+.emoji-picker .emoji-item:hover { background: var(--bg-hover); }
+
+@media (max-width: 768px) {
+  .sidebar { width: 100%; position: absolute; z-index: 10; height: 100%; }
+  .sidebar.collapsed { transform: translateX(-100%); }
+  .search-bar input { width: 150px; }
+  .search-bar input:focus { width: 180px; }
+  .msg { max-width: 85%; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>NextIM</h1>
+  <span id="api-status" class="status disconnected">API Off</span>
+  <span id="ws-status" class="status disconnected">WS Off</span>
+  <span style="flex:1"></span>
+  <div class="header-actions">
+    <span style="font-size:12px;color:var(--text-secondary)" id="fingerprint-display"></span>
+    <button class="icon-btn" onclick="toggleSidebar()" id="sidebar-toggle">☰</button>
+    <button class="icon-btn" onclick="openUserPanel()">👤</button>
+    <button class="icon-btn" onclick="openSettings()">⚙️</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar" id="sidebar">
+    <div class="config-panel">
+      <label>Store API</label>
+      <input id="api-url" value="http://127.0.0.1:9101" />
+      <label>Your Name</label>
+      <input id="username" value="alice" />
+      <button onclick="connect()">Connect</button>
+      <div class="info" id="store-info"></div>
+    </div>
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab('rooms')" id="tab-rooms">Rooms</div>
+      <div class="tab" onclick="switchTab('contacts')" id="tab-contacts">Contacts</div>
+      <div class="tab" onclick="switchTab('settings')" id="tab-settings">Settings</div>
+    </div>
+    <div class="tab-content">
+      <div id="panel-rooms">
+        <div class="room-list" id="room-list"></div>
+        <div class="new-item">
+          <input id="new-room-input" placeholder="Room name..." />
+          <button onclick="createRoom()">Create Room</button>
+        </div>
+      </div>
+      <div id="panel-contacts" style="display:none">
+        <div class="contact-list" id="contact-list"></div>
+        <div class="new-item">
+          <input id="new-contact-fp" placeholder="Fingerprint..." />
+          <input id="new-contact-name" placeholder="Display name..." />
+          <input id="new-contact-addr" placeholder="Store address (ws://...)" />
+          <button onclick="addContact()">Add Contact</button>
+        </div>
+      </div>
+      <div id="panel-settings" style="display:none">
+        <div style="padding: 16px;">
+          <div class="settings-section">
+            <h3>Appearance</h3>
+            <div class="settings-option">
+              <div>
+                <label>Dark Theme</label>
+                <div class="description">Use dark color scheme</div>
+              </div>
+              <div class="toggle-switch" id="theme-toggle" onclick="toggleTheme()"></div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h3>Notifications</h3>
+            <div class="settings-option">
+              <div>
+                <label>Desktop Notifications</label>
+                <div class="description">Show notifications for new messages</div>
+              </div>
+              <div class="toggle-switch active" id="notif-toggle" onclick="toggleNotifications()"></div>
+            </div>
+            <div class="settings-option">
+              <div>
+                <label>Sound Alerts</label>
+                <div class="description">Play sound when receiving messages</div>
+              </div>
+              <div class="toggle-switch active" id="sound-toggle" onclick="toggleSound()"></div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h3>Privacy</h3>
+            <div class="settings-option">
+              <div>
+                <label>Read Receipts</label>
+                <div class="description">Let others know when you read messages</div>
+              </div>
+              <div class="toggle-switch active" id="receipt-toggle" onclick="toggleReceipts()"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat">
+    <div class="chat-header">
+      <div>
+        <span class="room-name" id="current-room-name">Select a room</span>
+        <div class="room-info" id="current-room-info"></div>
+      </div>
+      <div class="search-bar">
+        <input id="search-input" placeholder="Search messages..." onkeydown="if(event.key==='Enter')searchMessages()" />
+        <button onclick="searchMessages()">🔍</button>
+        <button onclick="openRoomInfo()" id="room-info-btn" style="display:none">ℹ️</button>
+      </div>
+    </div>
+    <div id="search-results" class="search-results" style="display:none"></div>
+    <div class="messages" id="messages">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span>Connect to a Store to start chatting</span>
+      </div>
+    </div>
+    <div class="emoji-picker" id="emoji-picker"></div>
+    <div class="input-area">
+      <button class="emoji-btn" onclick="toggleEmojiPicker()" title="Add emoji">😊</button>
+      <input id="msg-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage();}" disabled />
+      <button class="attach-btn" onclick="attachFile()" title="Attach file" disabled>📎</button>
+      <button class="send-btn" id="send-btn" onclick="sendMessage()" disabled>Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>User Profile</h2>
+      <button class="modal-close" onclick="closeModal('user-modal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-field">
+        <label>Display Name</label>
+        <input type="text" id="user-display-name" placeholder="Your display name" />
+      </div>
+      <div class="modal-field">
+        <label>Fingerprint</label>
+        <input type="text" id="user-fingerprint" readonly style="background: var(--bg-tertiary);" />
+      </div>
+      <div class="modal-field">
+        <label>Store Address</label>
+        <input type="text" id="user-store-addr" readonly style="background: var(--bg-tertiary);" />
+      </div>
+      <div class="modal-field">
+        <label>Status Message</label>
+        <textarea id="user-status" placeholder="What's on your mind?"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal('user-modal')">Cancel</button>
+        <button class="btn-primary" onclick="saveUserProfile()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="room-info-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Room Information</h2>
+      <button class="modal-close" onclick="closeModal('room-info-modal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-field">
+        <label>Room Name</label>
+        <input type="text" id="room-name-edit" />
+      </div>
+      <div class="modal-field">
+        <label>Room Type</label>
+        <input type="text" id="room-type-display" readonly style="background: var(--bg-tertiary);" />
+      </div>
+      <div class="modal-field">
+        <label>Members (<span id="member-count">0</span>)</label>
+        <div id="member-list" style="max-height: 200px; overflow-y: auto;"></div>
+      </div>
+      <div class="modal-field">
+        <label>Add Member</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="add-member-fp" placeholder="Member fingerprint" style="flex: 1;" />
+          <button class="btn-primary" onclick="addRoomMember()">Add</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="leaveRoom()">Leave Room</button>
+        <button class="btn-primary" onclick="closeModal('room-info-modal')">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="notification" id="notification">
+  <div class="notification-content">
+    <div class="notification-title" id="notif-title">Notification</div>
+    <div class="notification-message" id="notif-message">Message</div>
+  </div>
+  <button class="modal-close" onclick="hideNotification()" style="position: static;">&times;</button>
+</div>
+
+<script>
+let apiUrl = '';
+let wsUrl = '';
+let username = '';
+let currentRoom = null;
+let rooms = new Map();
+let contacts = [];
+let ws = null;
+let pollInterval = null;
+let storeFingerprint = '';
+let settings = {
+  theme: 'dark',
+  notifications: true,
+  sound: true,
+  readReceipts: true
+};
+
+// Load settings from localStorage
+function loadSettings() {
+  const saved = localStorage.getItem('nextim-settings');
+  if (saved) {
+    settings = { ...settings, ...JSON.parse(saved) };
+    if (settings.theme === 'light') {
+      document.body.classList.add('light-theme');
+      document.getElementById('theme-toggle').classList.remove('active');
+    }
+    updateSettingsUI();
+  }
+}
+
+function saveSettings() {
+  localStorage.setItem('nextim-settings', JSON.stringify(settings));
+}
+
+function updateSettingsUI() {
+  document.getElementById('notif-toggle').className = settings.notifications ? 'toggle-switch active' : 'toggle-switch';
+  document.getElementById('sound-toggle').className = settings.sound ? 'toggle-switch active' : 'toggle-switch';
+  document.getElementById('receipt-toggle').className = settings.readReceipts ? 'toggle-switch active' : 'toggle-switch';
+}
+
+function switchTab(tab) {
+  document.getElementById('tab-rooms').className = tab === 'rooms' ? 'tab active' : 'tab';
+  document.getElementById('tab-contacts').className = tab === 'contacts' ? 'tab active' : 'tab';
+  document.getElementById('tab-settings').className = tab === 'settings' ? 'tab active' : 'tab';
+  document.getElementById('panel-rooms').style.display = tab === 'rooms' ? '' : 'none';
+  document.getElementById('panel-contacts').style.display = tab === 'contacts' ? '' : 'none';
+  document.getElementById('panel-settings').style.display = tab === 'settings' ? '' : 'none';
+  if (tab === 'contacts') loadContacts();
+}
+
+async function connect() {
+  apiUrl = document.getElementById('api-url').value.replace(/\/$/, '');
+  username = document.getElementById('username').value || 'anonymous';
+
+  try {
+    const health = await fetch(`${apiUrl}/health`).then(r => r.text());
+    if (health !== 'ok') throw new Error('API not healthy');
+
+    document.getElementById('api-status').textContent = 'API OK';
+    document.getElementById('api-status').className = 'status connected';
+
+    const identity = await fetch(`${apiUrl}/identity`).then(r => r.json());
+    storeFingerprint = identity.fingerprint;
+    document.getElementById('fingerprint-display').textContent = `User: ${username}`;
+    document.getElementById('store-info').textContent = `Store: ${identity.display_name} (${identity.fingerprint.slice(0, 12)}...)`;
+
+    document.getElementById('msg-input').disabled = false;
+    document.getElementById('send-btn').disabled = false;
+    document.querySelector('.attach-btn').disabled = false;
+
+    wsUrl = apiUrl.replace('http', 'ws').replace(':9101', ':9100');
+    connectWebSocket();
+
+    await loadRooms();
+
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(pollMessages, 5000);
+
+    showNotification('success', 'Connected', 'Successfully connected to NextIM Store');
+  } catch (e) {
+    document.getElementById('api-status').textContent = 'Failed';
+    document.getElementById('api-status').className = 'status disconnected';
+    showNotification('error', 'Connection Failed', e.message);
+    console.error('Connect failed:', e);
+  }
+}
+
+function connectWebSocket() {
+  if (ws) ws.close();
+  try {
+    ws = new WebSocket(wsUrl);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = () => {
+      document.getElementById('ws-status').textContent = 'WS Live';
+      document.getElementById('ws-status').className = 'status ws-connected';
+      console.log('WebSocket connected');
+    };
+
+    ws.onclose = () => {
+      document.getElementById('ws-status').textContent = 'WS Off';
+      document.getElementById('ws-status').className = 'status disconnected';
+      setTimeout(() => { if (apiUrl) connectWebSocket(); }, 3000);
+    };
+
+    ws.onerror = () => {
+      document.getElementById('ws-status').textContent = 'WS Err';
+      document.getElementById('ws-status').className = 'status disconnected';
+    };
+
+    ws.onmessage = (event) => {
+      console.log('WS message received, refreshing...');
+      if (currentRoom) loadMessages();
+      if (settings.notifications) {
+        showNotification('info', 'New Message', 'You have a new message');
+      }
+      if (settings.sound) playNotificationSound();
+    };
+  } catch (e) {
+    console.error('WebSocket connect failed:', e);
+  }
+}
+
+async function loadRooms() {
+  try {
+    const serverRooms = await fetch(`${apiUrl}/rooms`).then(r => r.json());
+    for (const r of serverRooms) {
+      if (!rooms.has(r.room_id)) {
+        rooms.set(r.room_id, {
+          name: r.name,
+          messages: [],
+          lastPoll: 0,
+          memberCount: r.member_count,
+          encrypted: r.encrypted,
+          unreadCount: 0
+        });
+      }
+    }
+    renderRooms();
+  } catch (e) { console.error('Load rooms failed:', e); }
+}
+
+async function createRoom() {
+  const input = document.getElementById('new-room-input');
+  const name = input.value.trim();
+  if (!name || !apiUrl) return;
+  input.value = '';
+
+  try {
+    const resp = await fetch(`${apiUrl}/rooms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, creator_fingerprint: username, room_type: 'group' })
+    });
+    const room = await resp.json();
+    rooms.set(room.room_id, {
+      name: room.name,
+      messages: [],
+      lastPoll: 0,
+      memberCount: room.member_count,
+      encrypted: room.encrypted,
+      unreadCount: 0
+    });
+    renderRooms();
+    selectRoom(room.room_id);
+    showNotification('success', 'Room Created', `Room "${name}" created successfully`);
+  } catch (e) {
+    showNotification('error', 'Failed', 'Could not create room');
+    console.error('Create room failed:', e);
+  }
+}
+
+function selectRoom(roomId) {
+  currentRoom = roomId;
+  const room = rooms.get(roomId);
+  if (room) {
+    room.unreadCount = 0;
+    document.getElementById('current-room-name').textContent = room.name;
+    document.getElementById('current-room-info').textContent = `${room.memberCount || '?'} members · ${room.encrypted ? '🔒 Encrypted' : '🔓 Unencrypted'}`;
+    document.getElementById('room-info-btn').style.display = 'block';
+  }
+  document.getElementById('search-results').style.display = 'none';
+  renderRooms();
+  loadMessages();
+}
+
+function renderRooms() {
+  const list = document.getElementById('room-list');
+  if (rooms.size === 0) {
+    list.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center">No rooms yet. Create one!</div>';
+    return;
+  }
+  list.innerHTML = '';
+  for (const [id, room] of rooms) {
+    const div = document.createElement('div');
+    div.className = 'room-item' + (id === currentRoom ? ' active' : '');
+    const lastMsg = room.messages[room.messages.length - 1];
+    const preview = lastMsg ? escapeHtml(lastMsg.text).slice(0, 40) : 'No messages';
+    const unreadBadge = room.unreadCount > 0 ? `<span class="unread-badge">${room.unreadCount}</span>` : '';
+    div.innerHTML = `
+      <div class="name">${escapeHtml(room.name)} ${room.encrypted ? '🔒' : ''}</div>
+      <div class="preview">${preview}</div>
+      ${unreadBadge}
+    `;
+    div.onclick = () => selectRoom(id);
+    list.appendChild(div);
+  }
+}
+
+async function sendMessage() {
+  if (!currentRoom || !apiUrl) return;
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  try {
+    const resp = await fetch(`${apiUrl}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room_id: currentRoom, sender_fingerprint: username, text })
+    });
+    const data = await resp.json();
+    const room = rooms.get(currentRoom);
+    if (room) {
+      room.messages.push({
+        msg_id: data.msg_id,
+        sender_fingerprint: username,
+        text,
+        timestamp: Date.now(),
+        sent: true
+      });
+      renderMessages();
+      renderRooms();
+    }
+  } catch (e) {
+    showNotification('error', 'Send Failed', 'Could not send message');
+    console.error('Send failed:', e);
+  }
+}
+
+async function loadMessages() {
+  if (!currentRoom || !apiUrl) return;
+  try {
+    const resp = await fetch(`${apiUrl}/messages/${currentRoom}`);
+    const msgs = await resp.json();
+    const room = rooms.get(currentRoom);
+    if (room) {
+      room.messages = msgs.map(m => ({ ...m, sent: m.sender_fingerprint === username }));
+      if (msgs.length > 0) room.lastPoll = msgs[msgs.length - 1].timestamp;
+      renderMessages();
+    }
+  } catch (e) { console.error('Load failed:', e); }
+}
+
+async function pollMessages() {
+  if (!currentRoom || !apiUrl) return;
+  const room = rooms.get(currentRoom);
+  if (!room) return;
+  try {
+    const since = room.lastPoll || 0;
+    const resp = await fetch(`${apiUrl}/messages/${currentRoom}?since=${since + 1}`);
+    const msgs = await resp.json();
+    if (msgs.length > 0) {
+      for (const m of msgs) {
+        if (!room.messages.find(existing => existing.msg_id === m.msg_id)) {
+          room.messages.push({ ...m, sent: m.sender_fingerprint === username });
+          if (m.sender_fingerprint !== username) {
+            room.unreadCount = (room.unreadCount || 0) + 1;
+          }
+        }
+      }
+      room.lastPoll = msgs[msgs.length - 1].timestamp;
+      renderMessages();
+      renderRooms();
+    }
+  } catch (e) { /* silent */ }
+}
+
+function renderMessages() {
+  const container = document.getElementById('messages');
+  const room = rooms.get(currentRoom);
+  if (!room || room.messages.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span>No messages yet. Start the conversation!</span>
+      </div>
+    `;
+    return;
+  }
+
+  let lastSender = null;
+  container.innerHTML = room.messages.map(m => {
+    const time = new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const date = new Date(m.timestamp).toLocaleDateString();
+    const cls = m.sent ? 'sent' : 'received';
+    const showSender = !m.sent && m.sender_fingerprint !== lastSender;
+    lastSender = m.sender_fingerprint;
+
+    const senderName = showSender ? `<div class="sender-name">${escapeHtml(m.sender_fingerprint.slice(0, 12))}</div>` : '';
+
+    return `
+      <div class="msg ${cls}" style="position: relative;">
+        ${senderName}
+        ${escapeHtml(m.text)}
+        <div class="meta">
+          <span>${time}</span>
+          ${m.verified ? '<span>✓</span>' : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+  container.scrollTop = container.scrollHeight;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function searchMessages() {
+  const query = document.getElementById('search-input').value.trim();
+  if (!query || !apiUrl) return;
+  try {
+    const url = currentRoom
+      ? `${apiUrl}/search?q=${encodeURIComponent(query)}&room_id=${currentRoom}&limit=20`
+      : `${apiUrl}/search?q=${encodeURIComponent(query)}&limit=20`;
+    const results = await fetch(url).then(r => r.json());
+    const container = document.getElementById('search-results');
+    if (results.length === 0) {
+      container.innerHTML = '<div style="padding:12px;color:var(--text-secondary);text-align:center">No results found</div>';
+    } else {
+      container.innerHTML = results.map(r => {
+        const time = new Date(r.timestamp).toLocaleString();
+        return `
+          <div class="result-item">
+            <span class="highlight">${escapeHtml(r.snippet)}</span>
+            <div style="color:var(--text-secondary);font-size:11px;margin-top:4px">
+              ${time} · Score: ${r.score.toFixed(2)}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    container.style.display = 'block';
+  } catch (e) {
+    showNotification('error', 'Search Failed', 'Could not search messages');
+    console.error('Search failed:', e);
+  }
+}
+
+// === Contacts ===
+
+async function loadContacts() {
+  if (!apiUrl) return;
+  try {
+    contacts = await fetch(`${apiUrl}/contacts`).then(r => r.json());
+    renderContacts();
+  } catch (e) { console.error('Load contacts failed:', e); }
+}
+
+function renderContacts() {
+  const list = document.getElementById('contact-list');
+  if (contacts.length === 0) {
+    list.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:13px;text-align:center">No contacts yet. Add someone!</div>';
+    return;
+  }
+  list.innerHTML = contacts.map(c => {
+    const trustCls = c.trust_level || 'public';
+    const isOnline = Math.random() > 0.5; // TODO: Real online status
+    return `<div class="contact-item">
+      <div class="name">
+        <span class="online-status ${isOnline ? 'online' : ''}"></span>
+        ${escapeHtml(c.display_name || c.fingerprint.slice(0, 12))}
+        <span class="trust ${trustCls}">${trustCls}</span>
+      </div>
+      <div class="detail">${escapeHtml(c.store_address || 'No address')}</div>
+    </div>`;
+  }).join('');
+}
+
+async function addContact() {
+  const fp = document.getElementById('new-contact-fp').value.trim();
+  const name = document.getElementById('new-contact-name').value.trim();
+  const addr = document.getElementById('new-contact-addr').value.trim();
+  if (!fp || !apiUrl) return;
+
+  try {
+    await fetch(`${apiUrl}/contacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint: fp, display_name: name || fp.slice(0, 12), store_address: addr, trust_level: 1 })
+    });
+    document.getElementById('new-contact-fp').value = '';
+    document.getElementById('new-contact-name').value = '';
+    document.getElementById('new-contact-addr').value = '';
+    loadContacts();
+    showNotification('success', 'Contact Added', `${name || fp.slice(0, 12)} added to contacts`);
+  } catch (e) {
+    showNotification('error', 'Failed', 'Could not add contact');
+    console.error('Add contact failed:', e);
+  }
+}
+
+// === UI Functions ===
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  sidebar.classList.toggle('collapsed');
+}
+
+function toggleTheme() {
+  settings.theme = settings.theme === 'dark' ? 'light' : 'dark';
+  document.body.classList.toggle('light-theme');
+  document.getElementById('theme-toggle').classList.toggle('active');
+  saveSettings();
+}
+
+function toggleNotifications() {
+  settings.notifications = !settings.notifications;
+  document.getElementById('notif-toggle').classList.toggle('active');
+  saveSettings();
+  if (settings.notifications && 'Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function toggleSound() {
+  settings.sound = !settings.sound;
+  document.getElementById('sound-toggle').classList.toggle('active');
+  saveSettings();
+}
+
+function toggleReceipts() {
+  settings.readReceipts = !settings.readReceipts;
+  document.getElementById('receipt-toggle').classList.toggle('active');
+  saveSettings();
+}
+
+function openUserPanel() {
+  document.getElementById('user-display-name').value = username;
+  document.getElementById('user-fingerprint').value = storeFingerprint;
+  document.getElementById('user-store-addr').value = apiUrl;
+  openModal('user-modal');
+}
+
+function openSettings() {
+  switchTab('settings');
+}
+
+function openRoomInfo() {
+  if (!currentRoom) return;
+  const room = rooms.get(currentRoom);
+  if (!room) return;
+
+  document.getElementById('room-name-edit').value = room.name;
+  document.getElementById('room-type-display').value = 'Group';
+  document.getElementById('member-count').textContent = room.memberCount || 0;
+
+  // TODO: Load actual members
+  document.getElementById('member-list').innerHTML = '<div style="padding:8px;color:var(--text-secondary);font-size:12px">Member list not yet implemented</div>';
+
+  openModal('room-info-modal');
+}
+
+async function addRoomMember() {
+  const fp = document.getElementById('add-member-fp').value.trim();
+  if (!fp || !currentRoom || !apiUrl) return;
+
+  try {
+    await fetch(`${apiUrl}/rooms/${currentRoom}/members`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor_fingerprint: username, new_member_fingerprint: fp })
+    });
+    document.getElementById('add-member-fp').value = '';
+    showNotification('success', 'Member Added', 'Member added to room');
+    openRoomInfo(); // Refresh
+  } catch (e) {
+    showNotification('error', 'Failed', 'Could not add member');
+    console.error('Add member failed:', e);
+  }
+}
+
+async function leaveRoom() {
+  if (!currentRoom || !apiUrl) return;
+  if (!confirm('Are you sure you want to leave this room?')) return;
+
+  try {
+    await fetch(`${apiUrl}/rooms/${currentRoom}/leave`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ member_fingerprint: username })
+    });
+    rooms.delete(currentRoom);
+    currentRoom = null;
+    renderRooms();
+    closeModal('room-info-modal');
+    showNotification('success', 'Left Room', 'You have left the room');
+  } catch (e) {
+    showNotification('error', 'Failed', 'Could not leave room');
+    console.error('Leave room failed:', e);
+  }
+}
+
+function saveUserProfile() {
+  username = document.getElementById('user-display-name').value.trim() || username;
+  document.getElementById('username').value = username;
+  document.getElementById('fingerprint-display').textContent = `User: ${username}`;
+  closeModal('user-modal');
+  showNotification('success', 'Profile Updated', 'Your profile has been updated');
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+function showNotification(type, title, message) {
+  const notif = document.getElementById('notification');
+  notif.className = `notification ${type} show`;
+  document.getElementById('notif-title').textContent = title;
+  document.getElementById('notif-message').textContent = message;
+  setTimeout(() => hideNotification(), 5000);
+
+  // Browser notification
+  if (settings.notifications && 'Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body: message, icon: '/favicon.ico' });
+  }
+}
+
+function hideNotification() {
+  document.getElementById('notification').classList.remove('show');
+}
+
+function playNotificationSound() {
+  // Simple beep using Web Audio API
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    oscillator.frequency.value = 800;
+    oscillator.type = 'sine';
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.5);
+  } catch (e) {
+    console.error('Could not play sound:', e);
+  }
+}
+
+function toggleEmojiPicker() {
+  const picker = document.getElementById('emoji-picker');
+  if (picker.classList.contains('show')) {
+    picker.classList.remove('show');
+    return;
+  }
+
+  // Common emojis
+  const emojis = ['😊', '😂', '❤️', '👍', '👎', '🎉', '🔥', '✨', '💯', '🚀', '👀', '🤔', '😎', '🙏', '💪', '🎯'];
+  picker.innerHTML = '<div class="emoji-grid">' +
+    emojis.map(e => `<div class="emoji-item" onclick="insertEmoji('${e}')">${e}</div>`).join('') +
+    '</div>';
+  picker.classList.add('show');
+}
+
+function insertEmoji(emoji) {
+  const input = document.getElementById('msg-input');
+  input.value += emoji;
+  input.focus();
+  document.getElementById('emoji-picker').classList.remove('show');
+}
+
+function attachFile() {
+  showNotification('info', 'Coming Soon', 'File attachment feature is not yet implemented');
+}
+
+// Initialize
+loadSettings();
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.classList.remove('active');
+    }
+  });
+});
+
+// Close emoji picker when clicking outside
+document.addEventListener('click', (e) => {
+  const picker = document.getElementById('emoji-picker');
+  const emojiBtn = document.querySelector('.emoji-btn');
+  if (picker && !picker.contains(e.target) && e.target !== emojiBtn) {
+    picker.classList.remove('show');
+  }
+});
+</script>
+</body>
+</html>

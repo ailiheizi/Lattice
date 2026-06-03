@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NextIM - Web Chat Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      width: 100%;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 48px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .header p {
+      font-size: 18px;
+      opacity: 0.95;
+    }
+
+    .content {
+      padding: 40px;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+      margin: 32px 0;
+    }
+
+    .feature {
+      text-align: center;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      transition: transform 0.2s;
+    }
+
+    .feature:hover {
+      transform: translateY(-4px);
+    }
+
+    .feature-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .feature h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .feature p {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    .cta-section {
+      text-align: center;
+      margin-top: 40px;
+      padding-top: 40px;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .cta-button {
+      display: inline-block;
+      padding: 16px 48px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .cta-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+
+    .info-section {
+      margin-top: 32px;
+      padding: 24px;
+      background: #f0f4ff;
+      border-radius: 12px;
+      border-left: 4px solid #667eea;
+    }
+
+    .info-section h3 {
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 12px;
+    }
+
+    .info-section ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .info-section li {
+      padding: 8px 0;
+      color: #555;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .info-section li::before {
+      content: "✓ ";
+      color: #667eea;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+
+    .tech-stack {
+      margin-top: 32px;
+      text-align: center;
+    }
+
+    .tech-stack h3 {
+      font-size: 16px;
+      color: #666;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .tech-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .badge {
+      padding: 8px 16px;
+      background: white;
+      border: 2px solid #e0e0e0;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #555;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 24px;
+      color: #999;
+      font-size: 13px;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    @media (max-width: 600px) {
+      .header h1 {
+        font-size: 36px;
+      }
+
+      .header p {
+        font-size: 16px;
+      }
+
+      .content {
+        padding: 24px;
+      }
+
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h1>NextIM</h1>
+      <p>Modern Decentralized Instant Messaging</p>
+    </div>
+
+    <div class="content">
+      <div class="feature-grid">
+        <div class="feature">
+          <div class="feature-icon">💬</div>
+          <h3>Real-time Chat</h3>
+          <p>WebSocket-based instant messaging with live updates</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">🔒</div>
+          <h3>Secure</h3>
+          <p>End-to-end encryption with Ed25519 signatures</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">🌐</div>
+          <h3>Decentralized</h3>
+          <p>P2P architecture with DHT discovery</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">🎨</div>
+          <h3>Modern UI</h3>
+          <p>Beautiful interface with dark/light themes</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">📱</div>
+          <h3>Responsive</h3>
+          <p>Works seamlessly on desktop and mobile</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">🔍</div>
+          <h3>Full-text Search</h3>
+          <p>Search through all your messages instantly</p>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h3>Getting Started</h3>
+        <ul>
+          <li>Start the Store service: <code>cargo run --bin nextim-store</code></li>
+          <li>Open the chat interface in your browser</li>
+          <li>Enter the Store API URL (default: http://127.0.0.1:9100)</li>
+          <li>Choose a username and connect</li>
+          <li>Create or join rooms to start chatting</li>
+        </ul>
+      </div>
+
+      <div class="cta-section">
+        <a href="chat/index.html" class="cta-button">Launch Chat App</a>
+      </div>
+
+      <div class="tech-stack">
+        <h3>Built With</h3>
+        <div class="tech-badges">
+          <span class="badge">Rust</span>
+          <span class="badge">WebSocket</span>
+          <span class="badge">Protobuf</span>
+          <span class="badge">Ed25519</span>
+          <span class="badge">SQLite</span>
+          <span class="badge">Tantivy</span>
+          <span class="badge">Tokio</span>
+          <span class="badge">Axum</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>NextIM - Decentralized Instant Messaging System</p>
+      <p style="margin-top: 8px">Open Source · Privacy-First · Self-Hosted</p>
+    </div>
+  </div>
+
+</body>
+</html>

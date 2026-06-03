@@ -1,0 +1,15 @@
+[package]
+name = "nextim-discovery"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+nextim-proto = { path = "../nextim-proto" }
+nextim-core = { path = "../nextim-core" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

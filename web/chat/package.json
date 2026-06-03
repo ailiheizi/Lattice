@@ -1,0 +1,28 @@
+{
+  "name": "nextim-web-chat",
+  "version": "1.0.0",
+  "description": "Modern web chat interface for NextIM decentralized messaging system",
+  "main": "index.html",
+  "scripts": {
+    "dev": "python -m http.server 8080",
+    "serve": "npx http-server -p 8080 -c-1",
+    "lint": "echo 'No linter configured yet'",
+    "format": "echo 'No formatter configured yet'"
+  },
+  "keywords": [
+    "nextim",
+    "chat",
+    "messaging",
+    "decentralized",
+    "p2p",
+    "websocket"
+  ],
+  "author": "NextIM Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/NextIM"
+  },
+  "devDependencies": {},
+  "dependencies": {}
+}

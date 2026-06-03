@@ -1,0 +1,68 @@
+# Docker ignore file for NextIM
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+reference/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts (will be built in container)
+target/
+Cargo.lock
+
+# Data directories
+data/
+logs/
+*.db
+*.db-shm
+*.db-wal
+
+# Test artifacts
+test-data/
+tmp/
+
+# Configuration files (use examples)
+nextim-store.toml
+nextim-peer.toml
+
+# Android
+android/
+*.apk
+*.aab
+
+# Web frontend (if not needed)
+web/node_modules/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Coverage and profiling
+tarpaulin-report.html
+cobertura.xml
+flamegraph.svg
+perf.data

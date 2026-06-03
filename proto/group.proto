@@ -1,0 +1,55 @@
+syntax = "proto3";
+package nextim.group;
+
+message Room {
+    string room_id = 1;
+    string name = 2;
+    RoomType type = 3;
+    string creator_fingerprint = 4;
+    bool encrypted = 5;
+    HistoryVisibility history_visibility = 6;
+    uint64 created_at = 7;
+    repeated RoomMember members = 8;
+}
+
+enum RoomType {
+    DIRECT = 0;
+    GROUP = 1;
+    CHANNEL = 2;
+}
+
+enum HistoryVisibility {
+    FULL = 0;
+    JOIN_ONLY = 1;
+}
+
+message RoomMember {
+    string user_fingerprint = 1;
+    MemberRole role = 2;
+    uint64 joined_at = 3;
+}
+
+enum MemberRole {
+    MEMBER = 0;
+    ADMIN = 1;
+    OWNER = 2;
+}
+
+message RoomEvent {
+    string room_id = 1;
+    string actor_fingerprint = 2;
+    RoomEventType type = 3;
+    string target_fingerprint = 4;
+    uint64 timestamp = 5;
+    bytes signature = 6;
+}
+
+enum RoomEventType {
+    MEMBER_JOIN = 0;
+    MEMBER_LEAVE = 1;
+    MEMBER_KICK = 2;
+    MEMBER_BAN = 3;
+    ROLE_CHANGE = 4;
+    ROOM_UPDATE = 5;
+    KEY_ROTATION = 6;
+}

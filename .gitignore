@@ -1,0 +1,80 @@
+# Rust
+/target/
+**/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+!crates/*/Cargo.lock
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Data directories
+/data/
+/logs/
+*.db
+*.db-shm
+*.db-wal
+
+# Configuration files (keep examples)
+nextim-store.toml
+nextim-peer.toml
+!*.example.toml
+
+# Test artifacts
+/test-data/
+/tmp/
+
+# Documentation build
+/target/doc/
+
+# Benchmark results
+/target/criterion/
+
+# Coverage reports
+/target/tarpaulin/
+tarpaulin-report.html
+cobertura.xml
+
+# Flamegraph
+flamegraph.svg
+perf.data
+perf.data.old
+
+# Android
+*.apk
+*.aab
+*.dex
+local.properties
+
+# Node (for web frontend)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Backup files
+*.bak
+*.backup
+*~
+*.excalidraw.bak
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Reference materials
+reference/

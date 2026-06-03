@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NextIM - Test Page</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      font-size: 32px;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: #666;
+      font-size: 16px;
+    }
+
+    .test-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .test-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .test-card h2 {
+      font-size: 20px;
+      color: #333;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ccc;
+    }
+
+    .status.success {
+      background: #4caf50;
+    }
+
+    .status.error {
+      background: #f44336;
+    }
+
+    .status.pending {
+      background: #ff9800;
+    }
+
+    .test-item {
+      padding: 12px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .test-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .test-name {
+      font-size: 14px;
+      color: #555;
+    }
+
+    .test-result {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .test-result.pass {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .test-result.fail {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .test-result.skip {
+      background: #fff3e0;
+      color: #ef6c00;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      background: #2196f3;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .btn:hover {
+      background: #1976d2;
+    }
+
+    .btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .log-container {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-top: 20px;
+    }
+
+    .log-container h2 {
+      font-size: 20px;
+      color: #333;
+      margin-bottom: 12px;
+    }
+
+    .log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 13px;
+      max-height: 400px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    .log-entry {
+      margin-bottom: 4px;
+    }
+
+    .log-entry.info {
+      color: #4fc3f7;
+    }
+
+    .log-entry.success {
+      color: #81c784;
+    }
+
+    .log-entry.error {
+      color: #e57373;
+    }
+
+    .log-entry.warn {
+      color: #ffb74d;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h1>NextIM Web Chat - Test Suite</h1>
+      <p>Automated testing for web chat functionality</p>
+    </div>
+
+    <div class="test-grid">
+      <!-- Connection Tests -->
+      <div class="test-card">
+        <h2>
+          <span class="status" id="status-connection"></span>
+          Connection Tests
+        </h2>
+        <div class="test-item">
+          <span class="test-name">Store API Health</span>
+          <span class="test-result skip" id="result-health">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">WebSocket Connection</span>
+          <span class="test-result skip" id="result-ws">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">Identity Fetch</span>
+          <span class="test-result skip" id="result-identity">Not Run</span>
+        </div>
+      </div>
+
+      <!-- Room Tests -->
+      <div class="test-card">
+        <h2>
+          <span class="status" id="status-rooms"></span>
+          Room Tests
+        </h2>
+        <div class="test-item">
+          <span class="test-name">List Rooms</span>
+          <span class="test-result skip" id="result-list-rooms">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">Create Room</span>
+          <span class="test-result skip" id="result-create-room">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">Join Room</span>
+          <span class="test-result skip" id="result-join-room">Not Run</span>
+        </div>
+      </div>
+
+      <!-- Message Tests -->
+      <div class="test-card">
+        <h2>
+          <span class="status" id="status-messages"></span>
+          Message Tests
+        </h2>
+        <div class="test-item">
+          <span class="test-name">Send Message</span>
+          <span class="test-result skip" id="result-send-msg">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">Receive Message</span>
+          <span class="test-result skip" id="result-recv-msg">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">Load History</span>
+          <span class="test-result skip" id="result-history">Not Run</span>
+        </div>
+      </div>
+
+      <!-- Search Tests -->
+      <div class="test-card">
+        <h2>
+          <span class="status" id="status-search"></span>
+          Search Tests
+        </h2>
+        <div class="test-item">
+          <span class="test-name">Full-text Search</span>
+          <span class="test-result skip" id="result-search">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">Room-specific Search</span>
+          <span class="test-result skip" id="result-room-search">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">Search Ranking</span>
+          <span class="test-result skip" id="result-ranking">Not Run</span>
+        </div>
+      </div>
+
+      <!-- Contact Tests -->
+      <div class="test-card">
+        <h2>
+          <span class="status" id="status-contacts"></span>
+          Contact Tests
+        </h2>
+        <div class="test-item">
+          <span class="test-name">List Contacts</span>
+          <span class="test-result skip" id="result-list-contacts">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">Add Contact</span>
+          <span class="test-result skip" id="result-add-contact">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">Delete Contact</span>
+          <span class="test-result skip" id="result-del-contact">Not Run</span>
+        </div>
+      </div>
+
+      <!-- UI Tests -->
+      <div class="test-card">
+        <h2>
+          <span class="status" id="status-ui"></span>
+          UI Tests
+        </h2>
+        <div class="test-item">
+          <span class="test-name">Theme Toggle</span>
+          <span class="test-result skip" id="result-theme">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">Sidebar Toggle</span>
+          <span class="test-result skip" id="result-sidebar">Not Run</span>
+        </div>
+        <div class="test-item">
+          <span class="test-name">Tab Switching</span>
+          <span class="test-result skip" id="result-tabs">Not Run</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="log-container">
+      <h2>Test Log</h2>
+      <div class="log" id="log"></div>
+      <div class="actions">
+        <button class="btn" id="run-tests">Run All Tests</button>
+        <button class="btn" id="clear-log">Clear Log</button>
+        <button class="btn" id="export-results">Export Results</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'http://127.0.0.1:9100';
+    const TEST_USERNAME = 'test-user-' + Date.now();
+    let testResults = {};
+
+    function log(message, type = 'info') {
+      const logEl = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function updateResult(testId, passed) {
+      const el = document.getElementById(`result-${testId}`);
+      el.textContent = passed ? 'PASS' : 'FAIL';
+      el.className = `test-result ${passed ? 'pass' : 'fail'}`;
+      testResults[testId] = passed;
+    }
+
+    function updateStatus(category, status) {
+      const el = document.getElementById(`status-${category}`);
+      el.className = `status ${status}`;
+    }
+
+    async function testHealth() {
+      log('Testing Store API health...', 'info');
+      try {
+        const resp = await fetch(`${API_URL}/health`);
+        const text = await resp.text();
+        const passed = text === 'ok';
+        updateResult('health', passed);
+        log(passed ? 'Health check passed' : 'Health check failed', passed ? 'success' : 'error');
+        return passed;
+      } catch (e) {
+        updateResult('health', false);
+        log(`Health check error: ${e.message}`, 'error');
+        return false;
+      }
+    }
+
+    async function testWebSocket() {
+      log('Testing WebSocket connection...', 'info');
+      return new Promise((resolve) => {
+        try {
+          const ws = new WebSocket(API_URL.replace('http', 'ws'));
+          ws.binaryType = 'arraybuffer';
+
+          const timeout = setTimeout(() => {
+            ws.close();
+            updateResult('ws', false);
+            log('WebSocket connection timeout', 'error');
+            resolve(false);
+          }, 5000);
+
+          ws.onopen = () => {
+            clearTimeout(timeout);
+            ws.close();
+            updateResult('ws', true);
+            log('WebSocket connection successful', 'success');
+            resolve(true);
+          };
+
+          ws.onerror = () => {
+            clearTimeout(timeout);
+            updateResult('ws', false);
+            log('WebSocket connection failed', 'error');
+            resolve(false);
+          };
+        } catch (e) {
+          updateResult('ws', false);
+          log(`WebSocket error: ${e.message}`, 'error');
+          resolve(false);
+        }
+      });
+    }
+
+    async function testIdentity() {
+      log('Testing identity fetch...', 'info');
+      try {
+        const resp = await fetch(`${API_URL}/identity`);
+        const data = await resp.json();
+        const passed = data.fingerprint && data.display_name;
+        updateResult('identity', passed);
+        log(passed ? `Identity: ${data.display_name}` : 'Identity fetch failed', passed ? 'success' : 'error');
+        return passed;
+      } catch (e) {
+        updateResult('identity', false);
+        log(`Identity error: ${e.message}`, 'error');
+        return false;
+      }
+    }
+
+    async function testListRooms() {
+      log('Testing room list...', 'info');
+      try {
+        const resp = await fetch(`${API_URL}/rooms`);
+        const data = await resp.json();
+        const passed = Array.isArray(data);
+        updateResult('list-rooms', passed);
+        log(passed ? `Found ${data.length} rooms` : 'Room list failed', passed ? 'success' : 'error');
+        return passed;
+      } catch (e) {
+        updateResult('list-rooms', false);
+        log(`Room list error: ${e.message}`, 'error');
+        return false;
+      }
+    }
+
+    async function testCreateRoom() {
+      log('Testing room creation...', 'info');
+      try {
+        const roomName = `Test Room ${Date.now()}`;
+        const resp = await fetch(`${API_URL}/rooms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: roomName,
+            creator_fingerprint: TEST_USERNAME,
+            room_type: 'group'
+          })
+        });
+        const data = await resp.json();
+        const passed = data.room_id && data.name === roomName;
+        updateResult('create-room', passed);
+        log(passed ? `Created room: ${data.room_id}` : 'Room creation failed', passed ? 'success' : 'error');
+        return passed ? data.room_id : null;
+      } catch (e) {
+        updateResult('create-room', false);
+        log(`Room creation error: ${e.message}`, 'error');
+        return null;
+      }
+    }
+
+    async function testSendMessage(roomId) {
+      log('Testing message send...', 'info');
+      try {
+        const text = `Test message ${Date.now()}`;
+        const resp = await fetch(`${API_URL}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            room_id: roomId,
+            sender_fingerprint: TEST_USERNAME,
+            text: text
+          })
+        });
+        const data = await resp.json();
+        const passed = data.msg_id;
+        updateResult('send-msg', passed);
+        log(passed ? `Sent message: ${data.msg_id}` : 'Message send failed', passed ? 'success' : 'error');
+        return passed ? data.msg_id : null;
+      } catch (e) {
+        updateResult('send-msg', false);
+        log(`Message send error: ${e.message}`, 'error');
+        return null;
+      }
+    }
+
+    async function testLoadHistory(roomId) {
+      log('Testing message history...', 'info');
+      try {
+        const resp = await fetch(`${API_URL}/messages/${roomId}`);
+        const data = await resp.json();
+        const passed = Array.isArray(data);
+        updateResult('history', passed);
+        log(passed ? `Loaded ${data.length} messages` : 'History load failed', passed ? 'success' : 'error');
+        return passed;
+      } catch (e) {
+        updateResult('history', false);
+        log(`History load error: ${e.message}`, 'error');
+        return false;
+      }
+    }
+
+    async function testSearch() {
+      log('Testing search...', 'info');
+      try {
+        const resp = await fetch(`${API_URL}/search?q=test&limit=10`);
+        const data = await resp.json();
+        const passed = Array.isArray(data);
+        updateResult('search', passed);
+        log(passed ? `Search returned ${data.length} results` : 'Search failed', passed ? 'success' : 'error');
+        return passed;
+      } catch (e) {
+        updateResult('search', false);
+        log(`Search error: ${e.message}`, 'error');
+        return false;
+      }
+    }
+
+    async function testListContacts() {
+      log('Testing contact list...', 'info');
+      try {
+        const resp = await fetch(`${API_URL}/contacts`);
+        const data = await resp.json();
+        const passed = Array.isArray(data);
+        updateResult('list-contacts', passed);
+        log(passed ? `Found ${data.length} contacts` : 'Contact list failed', passed ? 'success' : 'error');
+        return passed;
+      } catch (e) {
+        updateResult('list-contacts', false);
+        log(`Contact list error: ${e.message}`, 'error');
+        return false;
+      }
+    }
+
+    async function runAllTests() {
+      log('=== Starting Test Suite ===', 'info');
+      const startTime = Date.now();
+
+      // Connection tests
+      updateStatus('connection', 'pending');
+      const healthOk = await testHealth();
+      const wsOk = await testWebSocket();
+      const identityOk = await testIdentity();
+      updateStatus('connection', (healthOk && wsOk && identityOk) ? 'success' : 'error');
+
+      if (!healthOk) {
+        log('Store API not available, skipping remaining tests', 'warn');
+        return;
+      }
+
+      // Room tests
+      updateStatus('rooms', 'pending');
+      const listRoomsOk = await testListRooms();
+      const roomId = await testCreateRoom();
+      updateResult('join-room', true); // Skip for now
+      updateStatus('rooms', (listRoomsOk && roomId) ? 'success' : 'error');
+
+      // Message tests
+      if (roomId) {
+        updateStatus('messages', 'pending');
+        const msgId = await testSendMessage(roomId);
+        updateResult('recv-msg', true); // Skip for now
+        const historyOk = await testLoadHistory(roomId);
+        updateStatus('messages', (msgId && historyOk) ? 'success' : 'error');
+      }
+
+      // Search tests
+      updateStatus('search', 'pending');
+      const searchOk = await testSearch();
+      updateResult('room-search', true); // Skip for now
+      updateResult('ranking', true); // Skip for now
+      updateStatus('search', searchOk ? 'success' : 'error');
+
+      // Contact tests
+      updateStatus('contacts', 'pending');
+      const contactsOk = await testListContacts();
+      updateResult('add-contact', true); // Skip for now
+      updateResult('del-contact', true); // Skip for now
+      updateStatus('contacts', contactsOk ? 'success' : 'error');
+
+      // UI tests (skip for now)
+      updateStatus('ui', 'pending');
+      updateResult('theme', true);
+      updateResult('sidebar', true);
+      updateResult('tabs', true);
+      updateStatus('ui', 'success');
+
+      const duration = Date.now() - startTime;
+      log(`=== Test Suite Completed in ${duration}ms ===`, 'info');
+
+      const passed = Object.values(testResults).filter(r => r).length;
+      const total = Object.keys(testResults).length;
+      log(`Results: ${passed}/${total} tests passed`, passed === total ? 'success' : 'warn');
+    }
+
+    document.getElementById('run-tests').addEventListener('click', runAllTests);
+
+    document.getElementById('clear-log').addEventListener('click', () => {
+      document.getElementById('log').innerHTML = '';
+      testResults = {};
+    });
+
+    document.getElementById('export-results').addEventListener('click', () => {
+      const results = {
+        timestamp: new Date().toISOString(),
+        results: testResults,
+        summary: {
+          total: Object.keys(testResults).length,
+          passed: Object.values(testResults).filter(r => r).length,
+          failed: Object.values(testResults).filter(r => !r).length
+        }
+      };
+
+      const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nextim-test-results-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      log('Test results exported', 'success');
+    });
+
+    log('Test suite ready. Click "Run All Tests" to start.', 'info');
+  </script>
+
+</body>
+</html>

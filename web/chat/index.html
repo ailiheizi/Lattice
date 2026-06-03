@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NextIM - Modern Chat</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">N</div>
+    <h1>NextIM</h1>
+    <span id="api-status" class="status-badge disconnected">API Off</span>
+    <span id="ws-status" class="status-badge disconnected">WS Off</span>
+    <div class="header-spacer"></div>
+    <div class="header-info">
+      <span id="user-display">Not connected</span>
+      <span style="color: var(--text-muted)">·</span>
+      <span id="store-info" style="font-size: 11px"></span>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="toggle-sidebar" title="Toggle Sidebar">☰</button>
+      <button class="icon-btn" id="theme-toggle" title="Toggle Theme">🌓</button>
+      <button class="icon-btn" id="toggle-settings" title="Settings">⚙</button>
+    </div>
+  </div>
+
+  <!-- Main Layout -->
+  <div class="main">
+
+    <!-- Left Sidebar -->
+    <div class="sidebar">
+      <!-- Connection Panel -->
+      <div class="settings-section">
+        <h3>Connection</h3>
+        <div class="form-group">
+          <input type="text" id="api-url" class="form-input" placeholder="Store API URL" value="http://127.0.0.1:9100">
+        </div>
+        <div class="form-group">
+          <input type="text" id="username" class="form-input" placeholder="Your username">
+        </div>
+        <button class="btn btn-primary" id="connect-btn">Connect</button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tab-bar">
+        <div class="tab active" data-tab="rooms">
+          Rooms
+          <span class="badge" id="rooms-badge" style="display:none">0</span>
+        </div>
+        <div class="tab" data-tab="contacts">
+          Contacts
+          <span class="badge" id="contacts-badge" style="display:none">0</span>
+        </div>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="tab-content">
+
+        <!-- Rooms Panel -->
+        <div class="tab-panel active" id="panel-rooms">
+          <div class="list-container" id="room-list">
+            <div class="empty-list">
+              <div style="font-size:32px;margin-bottom:8px">💬</div>
+              <div>Connect to start chatting</div>
+            </div>
+          </div>
+          <div class="new-item-form">
+            <div class="form-group">
+              <input type="text" id="room-name-input" class="form-input" placeholder="New room name...">
+            </div>
+            <button class="btn btn-primary" id="create-room-btn">Create Room</button>
+            <button class="btn btn-secondary" id="join-room-btn" style="margin-top:8px">Join Room</button>
+          </div>
+        </div>
+
+        <!-- Contacts Panel -->
+        <div class="tab-panel" id="panel-contacts">
+          <div class="list-container" id="contact-list">
+            <div class="empty-list">
+              <div style="font-size:32px;margin-bottom:8px">👥</div>
+              <div>No contacts yet</div>
+            </div>
+          </div>
+          <div class="new-item-form">
+            <div class="form-group">
+              <input type="text" id="contact-fingerprint" class="form-input" placeholder="Fingerprint...">
+            </div>
+            <div class="form-group">
+              <input type="text" id="contact-name" class="form-input" placeholder="Display name...">
+            </div>
+            <div class="form-group">
+              <input type="text" id="contact-address" class="form-input" placeholder="Store address (ws://...)">
+            </div>
+            <button class="btn btn-primary" id="add-contact-btn">Add Contact</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Chat Area -->
+    <div class="chat">
+
+      <!-- Chat Header -->
+      <div class="chat-header">
+        <div class="chat-header-info">
+          <div class="chat-title" id="chat-title">Select a room</div>
+          <div class="chat-subtitle" id="chat-subtitle">Choose a room to start chatting</div>
+        </div>
+        <div class="chat-actions">
+          <div class="search-bar">
+            <input type="text" id="search-input" class="search-input" placeholder="Search messages...">
+            <button class="icon-btn" id="search-btn">🔍</button>
+            <button class="icon-btn" id="clear-search" style="display:none">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search Results -->
+      <div id="search-results" style="display:none;background:var(--bg-tertiary);border-bottom:1px solid var(--border-color);padding:12px 20px;max-height:200px;overflow-y:auto">
+      </div>
+
+      <!-- Messages -->
+      <div class="messages-container" id="messages-container">
+        <div class="empty-state">
+          <div class="empty-state-icon">💬</div>
+          <div>Connect to a Store to start chatting</div>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="input-area">
+        <div class="input-wrapper">
+          <textarea id="message-input" class="message-input" placeholder="Type a message..." rows="1" disabled></textarea>
+        </div>
+        <button class="send-btn" id="send-btn" disabled>Send</button>
+      </div>
+
+    </div>
+
+    <!-- Right Sidebar (Settings) -->
+    <div class="right-sidebar collapsed">
+
+      <!-- User Settings -->
+      <div class="settings-section">
+        <h3>Preferences</h3>
+
+        <div class="setting-item">
+          <span class="setting-label">Notifications</span>
+          <div class="toggle-switch active" id="toggle-notifications"></div>
+        </div>
+
+        <div class="setting-item">
+          <span class="setting-label">Sound</span>
+          <div class="toggle-switch active" id="toggle-sound"></div>
+        </div>
+
+        <div class="setting-item">
+          <span class="setting-label">Enter to Send</span>
+          <div class="toggle-switch active" id="toggle-enter-send"></div>
+        </div>
+
+        <div class="setting-item">
+          <span class="setting-label">Show Timestamps</span>
+          <div class="toggle-switch active" id="toggle-timestamps"></div>
+        </div>
+
+        <div class="setting-item">
+          <span class="setting-label">Compact Mode</span>
+          <div class="toggle-switch" id="toggle-compact"></div>
+        </div>
+      </div>
+
+      <!-- Data Management -->
+      <div class="settings-section">
+        <h3>Data</h3>
+        <button class="btn btn-secondary" id="export-data-btn" style="margin-bottom:8px">Export Data</button>
+        <button class="btn btn-secondary" id="clear-cache-btn">Clear Cache</button>
+      </div>
+
+      <!-- About -->
+      <div class="settings-section">
+        <h3>About</h3>
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.6">
+          <p><strong>NextIM Web Chat</strong></p>
+          <p>Version 1.0</p>
+          <p style="margin-top:8px">A modern, decentralized instant messaging system.</p>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/utils.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/rooms.js"></script>
+  <script src="js/contacts.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/shortcuts.js"></script>
+
+  <script>
+    // Auto-resize textarea
+    const messageInput = document.getElementById('message-input');
+    messageInput.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    // Show/hide clear search button
+    const searchInput = document.getElementById('search-input');
+    const clearSearchBtn = document.getElementById('clear-search');
+    searchInput.addEventListener('input', function() {
+      clearSearchBtn.style.display = this.value ? 'block' : 'none';
+    });
+  </script>
+
+</body>
+</html>

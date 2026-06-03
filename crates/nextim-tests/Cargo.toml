@@ -1,0 +1,25 @@
+[package]
+name = "nextim-tests"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+nextim-store = { path = "../nextim-store" }
+nextim-proto = { path = "../nextim-proto" }
+nextim-core = { path = "../nextim-core" }
+nextim-crypto = { path = "../nextim-crypto" }
+nextim-transport = { path = "../nextim-transport" }
+nextim-storage = { path = "../nextim-storage" }
+tokio.workspace = true
+prost.workspace = true
+futures-util = "0.3"
+tokio-tungstenite.workspace = true
+vodozemac.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest = { version = "0.12", features = ["json"] }
+axum.workspace = true
+tower-http = { version = "0.5", features = ["cors"] }
+uuid.workspace = true
+tempfile = "3"
