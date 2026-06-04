@@ -223,7 +223,6 @@ struct GetMessagesQuery {
     until: Option<u64>,
     limit: Option<u32>,
     offset: Option<u64>,
-    member_fingerprint: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -715,6 +714,9 @@ struct RegisterDeviceReq {
     device_ed25519_key: String,    // base64
     device_curve25519_key: String, // base64
     signature: String,             // base64
+    /// 用户主公钥（base64）。Store 据此验证：(1) 其指纹等于 user_fingerprint，
+    /// (2) 设备签名确由该主私钥签发。无主私钥者无法伪造，防止冒名注册。
+    master_ed25519_key: String,
     #[serde(default)]
     device_name: String,
 }
@@ -765,6 +767,26 @@ async fn register_device(
         device_name: req.device_name,
         created_at,
     };
+
+    // 身份校验：防止冒名给他人注册设备。
+    // (1) 主公钥的指纹必须等于声称的 user_fingerprint（公钥与身份绑定）。
+    // (2) 设备签名必须由该主私钥签发（证明请求者持有主私钥）。
+    let master_key = base64_decode(&req.master_ed25519_key)?;
+    if nextim_crypto::identity::compute_fingerprint(&master_key) != req.user_fingerprint {
+        return Err((
+            StatusCode::FORBIDDEN,
+            "master key fingerprint does not match user_fingerprint".to_string(),
+        ));
+    }
+    match nextim_crypto::identity::verify_device_signature(&master_key, &device) {
+        Ok(true) => {}
+        _ => {
+            return Err((
+                StatusCode::FORBIDDEN,
+                "device signature not signed by the claimed master key".to_string(),
+            ))
+        }
+    }
 
     // 用已有设备列表初始化管理器并校验（防止同设备 ID 重复、防止跨用户注册）
     let existing = state

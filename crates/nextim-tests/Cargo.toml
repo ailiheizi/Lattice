@@ -22,4 +22,5 @@ reqwest = { version = "0.12", features = ["json"] }
 axum.workspace = true
 tower-http = { version = "0.5", features = ["cors"] }
 uuid.workspace = true
+base64.workspace = true
 tempfile = "3"

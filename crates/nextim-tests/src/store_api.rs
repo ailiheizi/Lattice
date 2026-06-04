@@ -6,9 +6,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use nextim_crypto::{identity::MasterKeyPair, olm::OlmAccount};
+use nextim_crypto::{
+    identity::{DeviceKeyPair, MasterKeyPair},
+    olm::OlmAccount,
+};
 use nextim_storage::{sqlite::SqliteStorage, tantivy_search::TantivySearch};
 use tokio::sync::{Mutex, RwLock};
+
+use base64::Engine;
 
 use nextim_store::{api, AppState, OnlineConnections, OutboundPool};
 
@@ -392,65 +397,54 @@ async fn store_api_manages_contacts_and_rooms_via_real_routes() {
 async fn store_api_registers_and_lists_devices_via_real_routes() {
     let (url, handle) = start_store_api().await;
     let client = reqwest::Client::new();
-    let user = "multi-device-user-fp";
+
+    // 用真实主密钥；user_fingerprint 必须等于主公钥指纹。
+    let master = MasterKeyPair::generate();
+    let user = master.fingerprint();
+    let b64 = |b: &[u8]| base64::engine::general_purpose::STANDARD.encode(b);
+    let master_b64 = b64(master.verifying_key().as_bytes());
+
+    // 构造一台由主密钥签名的设备注册请求体。
+    let make_device_req = |master: &MasterKeyPair, device_id: &str, name: &str| {
+        let dk = DeviceKeyPair::generate();
+        let info = master.sign_device(device_id, name, &dk.verifying_key(), &dk.encryption_public_key());
+        serde_json::json!({
+            "device_id": device_id,
+            "user_fingerprint": master.fingerprint(),
+            "device_ed25519_key": b64(&info.device_ed25519_key),
+            "device_curve25519_key": b64(&info.device_curve25519_key),
+            "signature": b64(&info.signature),
+            "master_ed25519_key": b64(master.verifying_key().as_bytes()),
+            "device_name": name,
+        })
+    };
 
     // 初始无设备
     let empty: Vec<serde_json::Value> = client
         .get(format!("{url}/devices/{user}"))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
+        .send().await.unwrap().json().await.unwrap();
     assert!(empty.is_empty());
 
-    // 注册第一台设备
+    // 合法注册第一台设备
     let phone: serde_json::Value = client
         .post(format!("{url}/devices"))
-        .json(&serde_json::json!({
-            "device_id": "phone-1",
-            "user_fingerprint": user,
-            "device_ed25519_key": "AQIatest",
-            "device_curve25519_key": "BAUGtest",
-            "signature": "BwgJtest",
-            "device_name": "Alice Phone"
-        }))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
+        .json(&make_device_req(&master, "phone-1", "Alice Phone"))
+        .send().await.unwrap().json().await.unwrap();
     assert_eq!(phone["device_id"], "phone-1");
     assert_eq!(phone["device_name"], "Alice Phone");
     assert!(phone["created_at"].as_u64().unwrap() > 0);
 
-    // 注册第二台设备
+    // 合法注册第二台设备
     let laptop_status = client
         .post(format!("{url}/devices"))
-        .json(&serde_json::json!({
-            "device_id": "laptop-1",
-            "user_fingerprint": user,
-            "device_ed25519_key": "AQIatest",
-            "device_curve25519_key": "BAUGtest",
-            "signature": "BwgJtest",
-            "device_name": "Alice Laptop"
-        }))
-        .send()
-        .await
-        .unwrap();
+        .json(&make_device_req(&master, "laptop-1", "Alice Laptop"))
+        .send().await.unwrap();
     assert_eq!(laptop_status.status(), 200);
 
     // 新设备发现同账号已注册设备：列表返回两台
     let devices: Vec<serde_json::Value> = client
         .get(format!("{url}/devices/{user}"))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
+        .send().await.unwrap().json().await.unwrap();
     assert_eq!(devices.len(), 2);
     assert!(devices.iter().any(|d| d["device_id"] == "phone-1"));
     assert!(devices.iter().any(|d| d["device_id"] == "laptop-1"));
@@ -458,44 +452,40 @@ async fn store_api_registers_and_lists_devices_via_real_routes() {
     // 重复 device_id → 409 Conflict
     let duplicate = client
         .post(format!("{url}/devices"))
-        .json(&serde_json::json!({
-            "device_id": "phone-1",
-            "user_fingerprint": user,
-            "device_ed25519_key": "AQIatest",
-            "device_curve25519_key": "BAUGtest",
-            "signature": "BwgJtest"
-        }))
-        .send()
-        .await
-        .unwrap();
+        .json(&make_device_req(&master, "phone-1", "dup"))
+        .send().await.unwrap();
     assert_eq!(duplicate.status(), 409);
 
-    // user_fingerprint 与请求体不一致的情况下，DeviceManager 仍按请求体的 user 注册；
-    // 非法 base64 → 400 Bad Request
-    let bad_key = client
+    // 冒名攻击：用攻击者自己的主密钥签名，但声称是受害者 user_fingerprint → 403
+    let attacker = MasterKeyPair::generate();
+    let dk = DeviceKeyPair::generate();
+    let forged = attacker.sign_device("evil-1", "evil", &dk.verifying_key(), &dk.encryption_public_key());
+    let impersonation = client
         .post(format!("{url}/devices"))
         .json(&serde_json::json!({
-            "device_id": "tablet-1",
-            "user_fingerprint": user,
-            "device_ed25519_key": "not valid base64!!!",
-            "device_curve25519_key": "BAUGtest",
-            "signature": "BwgJtest"
+            "device_id": "evil-1",
+            "user_fingerprint": user,                       // 声称是受害者
+            "device_ed25519_key": b64(&forged.device_ed25519_key),
+            "device_curve25519_key": b64(&forged.device_curve25519_key),
+            "signature": b64(&forged.signature),
+            "master_ed25519_key": master_b64.clone(),       // 受害者真公钥，但签名不是它签的
         }))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(bad_key.status(), 400);
+        .send().await.unwrap();
+    assert_eq!(impersonation.status(), 403, "forged device signature must be rejected");
 
-    // 另一用户的设备互不干扰
-    let other_user_devices: Vec<serde_json::Value> = client
-        .get(format!("{url}/devices/other-user-fp"))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
-    assert!(other_user_devices.is_empty());
+    // 主公钥与声称指纹不符 → 403
+    let mismatch = client
+        .post(format!("{url}/devices"))
+        .json(&serde_json::json!({
+            "device_id": "x-1",
+            "user_fingerprint": user,
+            "device_ed25519_key": b64(&forged.device_ed25519_key),
+            "device_curve25519_key": b64(&forged.device_curve25519_key),
+            "signature": b64(&forged.signature),
+            "master_ed25519_key": b64(attacker.verifying_key().as_bytes()), // 公钥指纹≠user
+        }))
+        .send().await.unwrap();
+    assert_eq!(mismatch.status(), 403, "master key not matching fingerprint must be rejected");
 
     handle.abort();
 }
