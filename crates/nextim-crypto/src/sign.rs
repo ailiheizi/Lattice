@@ -72,6 +72,42 @@ pub fn compute_room_event_hash(
     Ok(sha256(&encoded))
 }
 
+/// 验证 RoomEvent 的完整性与签名。
+///
+/// 两步：(1) 重算 `compute_room_event_hash` 并与来包 `msg_hash` 比对（不信任客户端填的 hash）；
+/// (2) 用 actor 的主公钥验证 `signature` 对该 hash 有效。任一不通过则拒绝。
+pub fn verify_room_event(
+    actor_public_key: &[u8],
+    event: &nextim_proto::group::RoomEvent,
+) -> Result<bool, SignVerifyError> {
+    // (1) 重算 hash 并与来包比对
+    let computed = compute_room_event_hash(event)?;
+    if computed != event.msg_hash {
+        return Err(SignVerifyError::HashMismatch);
+    }
+
+    // (2) 验签
+    let verifying_key = VerifyingKey::from_bytes(
+        actor_public_key
+            .try_into()
+            .map_err(|_| SignVerifyError::InvalidPublicKey)?,
+    )
+    .map_err(|_| SignVerifyError::InvalidPublicKey)?;
+
+    let sig_bytes: [u8; 64] = event
+        .signature
+        .as_slice()
+        .try_into()
+        .map_err(|_| SignVerifyError::InvalidSignature)?;
+    let signature = Signature::from_bytes(&sig_bytes);
+
+    verifying_key
+        .verify(&computed, &signature)
+        .map_err(|_| SignVerifyError::SignatureVerificationFailed)?;
+
+    Ok(true)
+}
+
 /// 验证消息签名
 ///
 /// 检查 Envelope 中的 signature 是否由 sender 的公钥签发，
@@ -308,5 +344,55 @@ mod tests {
         assert_eq!(hash.len(), 32);
         assert_eq!(hash, sha256(b"hello"));
         assert_ne!(hash, sha256(b"world"));
+    }
+
+    fn make_signed_room_event(signing_key: &SigningKey) -> nextim_proto::group::RoomEvent {
+        use ed25519_dalek::Signer;
+        let mut event = nextim_proto::group::RoomEvent {
+            room_id: "room-1".to_string(),
+            actor_fingerprint: "actor-fp".to_string(),
+            r#type: 0,
+            target_fingerprint: "target-fp".to_string(),
+            timestamp: 1000,
+            signature: vec![],
+            prev_hashes: Vec::new(),
+            msg_hash: vec![],
+        };
+        let hash = compute_room_event_hash(&event).unwrap();
+        event.signature = signing_key.sign(&hash).to_bytes().to_vec();
+        event.msg_hash = hash;
+        event
+    }
+
+    #[test]
+    fn test_verify_room_event_ok() {
+        let key = SigningKey::generate(&mut OsRng);
+        let event = make_signed_room_event(&key);
+        assert!(verify_room_event(key.verifying_key().as_bytes(), &event).unwrap());
+    }
+
+    #[test]
+    fn test_room_event_tampered_actor_fails() {
+        let key = SigningKey::generate(&mut OsRng);
+        let mut event = make_signed_room_event(&key);
+        event.actor_fingerprint.push('x'); // 改内容但不重算 hash → hash 比对失败
+        assert!(verify_room_event(key.verifying_key().as_bytes(), &event).is_err());
+    }
+
+    #[test]
+    fn test_room_event_forged_msg_hash_fails() {
+        let key = SigningKey::generate(&mut OsRng);
+        let mut event = make_signed_room_event(&key);
+        event.msg_hash = vec![0u8; 32]; // 伪造 hash → 与重算不符
+        assert!(verify_room_event(key.verifying_key().as_bytes(), &event).is_err());
+    }
+
+    #[test]
+    fn test_room_event_wrong_key_fails() {
+        let key = SigningKey::generate(&mut OsRng);
+        let other = SigningKey::generate(&mut OsRng);
+        let event = make_signed_room_event(&key);
+        // hash 正确但签名非该公钥所签 → 验签失败
+        assert!(verify_room_event(other.verifying_key().as_bytes(), &event).is_err());
     }
 }

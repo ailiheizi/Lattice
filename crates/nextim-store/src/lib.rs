@@ -41,6 +41,10 @@ pub struct StoreConfig {
     /// REST 管理接口的 Bearer token；留空则启动时自动生成。
     #[serde(default)]
     pub api_token: String,
+    /// 是否接受无签名消息/房间事件。默认 false（强制验签）。
+    /// 仅调试或旧协议迁移时显式开启，生产务必保持 false。
+    #[serde(default)]
+    pub allow_unsigned: bool,
 }
 
 fn default_ws_addr() -> String {
@@ -62,6 +66,7 @@ impl Default for StoreConfig {
             proxy_store_address: String::new(),
             display_name: String::new(),
             api_token: String::new(),
+            allow_unsigned: false,
         }
     }
 }
@@ -86,6 +91,8 @@ pub struct AppState {
     pub ws_addr: String,
     /// REST 管理接口的 Bearer token。空字符串表示未启用鉴权（仅应在测试中出现）。
     pub api_token: String,
+    /// 是否接受无签名消息/房间事件。默认 false（强制验签）。
+    pub allow_unsigned: bool,
 }
 
 pub async fn run() -> Result<()> {
@@ -184,6 +191,7 @@ pub async fn run() -> Result<()> {
         identity,
         olm_account: Mutex::new(olm_account),
         api_token,
+        allow_unsigned: config.allow_unsigned,
     });
 
     tracing::info!("NextIM Store starting...");

@@ -49,6 +49,7 @@ fn test_state(data_dir: PathBuf) -> Arc<AppState> {
         display_name: "WS Test Store".to_string(),
         ws_addr: "127.0.0.1:0".to_string(),
         api_token: String::new(),
+        allow_unsigned: true,
     })
 }
 
@@ -109,17 +110,26 @@ fn make_signed_contact(identity: &MasterKeyPair, store_address: &str) -> Contact
     }
 }
 
-fn make_room_event(room_id: &str, actor: &str, target: &str, timestamp: u64) -> RoomEvent {
-    RoomEvent {
+fn make_room_event(
+    master: &MasterKeyPair,
+    room_id: &str,
+    target: &str,
+    timestamp: u64,
+) -> RoomEvent {
+    let mut event = RoomEvent {
         room_id: room_id.to_string(),
-        actor_fingerprint: actor.to_string(),
+        actor_fingerprint: master.fingerprint(),
         r#type: RoomEventType::MemberJoin as i32,
         target_fingerprint: target.to_string(),
         timestamp,
-        signature: b"room-event-signature".to_vec(),
+        signature: Vec::new(),
         prev_hashes: Vec::new(),
         msg_hash: Vec::new(),
-    }
+    };
+    let hash = sign::compute_room_event_hash(&event).expect("room event hash");
+    event.signature = master.sign(&hash);
+    event.msg_hash = hash;
+    event
 }
 
 fn test_fixture() -> StoreFixture {
@@ -470,6 +480,8 @@ async fn real_ws_server_holds_out_of_order_messages_until_parent_arrives() {
 async fn real_ws_server_stores_and_syncs_room_events() {
     let (fixture, url, server_handle) = spawn_real_store_server().await;
     let room = "room-event-sync-room";
+    let actor = MasterKeyPair::generate();
+    let actor_fp = actor.fingerprint();
 
     fixture
         .state
@@ -484,14 +496,22 @@ async fn real_ws_server_stores_and_syncs_room_events() {
         .await
         .unwrap();
 
+    // 存 actor 公钥到联系人，使 Store 能验证房间事件签名。
+    fixture
+        .state
+        .storage
+        .save_contact(&make_signed_contact(&actor, ""))
+        .await
+        .unwrap();
+
     let (mut ws, _) = connect_async(&url).await.unwrap();
 
     let frame = Frame {
         seq: 3,
         r#type: FrameType::RoomEvent as i32,
         body: Some(frame::Body::RoomEvent(make_room_event(
+            &actor,
             room,
-            "owner-fp",
             "alice-fp",
             2000,
         ))),
@@ -518,7 +538,7 @@ async fn real_ws_server_stores_and_syncs_room_events() {
         .await
         .unwrap();
     assert_eq!(stored_events.len(), 1);
-    assert_eq!(stored_events[0].actor_fingerprint, "owner-fp");
+    assert_eq!(stored_events[0].actor_fingerprint, actor_fp);
     assert_eq!(stored_events[0].target_fingerprint, "alice-fp");
     assert_eq!(stored_events[0].timestamp, 2000);
 
@@ -543,7 +563,7 @@ async fn real_ws_server_stores_and_syncs_room_events() {
         assert!(response.messages.is_empty());
         assert_eq!(response.events.len(), 1);
         assert_eq!(response.events[0].room_id, room);
-        assert_eq!(response.events[0].actor_fingerprint, "owner-fp");
+        assert_eq!(response.events[0].actor_fingerprint, actor_fp);
         assert_eq!(response.events[0].target_fingerprint, "alice-fp");
         assert_eq!(response.events[0].timestamp, 2000);
         assert_eq!(response.next_batch, 2001);
@@ -554,7 +574,7 @@ async fn real_ws_server_stores_and_syncs_room_events() {
         assert!(!item.msg_hash.is_empty(), "timeline item should carry msg_hash");
         match &item.item {
             Some(nextim_proto::transport::sync_timeline_item::Item::RoomEvent(ev)) => {
-                assert_eq!(ev.actor_fingerprint, "owner-fp");
+                assert_eq!(ev.actor_fingerprint, actor_fp);
                 assert_eq!(ev.target_fingerprint, "alice-fp");
             }
             other => panic!("expected room event in timeline, got {other:?}"),
@@ -736,6 +756,7 @@ async fn real_ws_server_forwards_to_recipient_store_from_contacts() {
 async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
     let (fixture, url, server_handle) = spawn_real_store_server().await;
     let room = "unified-timeline-room";
+    let actor = MasterKeyPair::generate();
 
     fixture
         .state
@@ -747,6 +768,14 @@ async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
             members: vec![],
             ..Default::default()
         })
+        .await
+        .unwrap();
+
+    // 存 actor 公钥到联系人，使房间事件验签可通过。
+    fixture
+        .state
+        .storage
+        .save_contact(&make_signed_contact(&actor, ""))
         .await
         .unwrap();
 
@@ -777,7 +806,7 @@ async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
         seq: 1,
         r#type: FrameType::RoomEvent as i32,
         body: Some(frame::Body::RoomEvent(make_room_event(
-            room, "owner-fp", "bob-fp", 3000,
+            &actor, room, "bob-fp", 3000,
         ))),
     };
     ws.send(WsMessage::Binary(event_frame.encode_to_vec().into())).await.unwrap();

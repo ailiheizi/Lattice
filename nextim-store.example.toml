@@ -20,3 +20,7 @@ proxy_store_address = ""
 # 留空则启动时自动生成一个并打印到日志——生产环境务必显式设置一个高强度随机值。
 # 客户端调用写接口时需带 HTTP 头：Authorization: Bearer <token>
 api_token = ""
+
+# 是否接受无签名的消息/房间事件。默认 false（强制验签，推荐）。
+# 仅在调试或旧协议迁移时显式设为 true，生产务必保持 false。
+allow_unsigned = false

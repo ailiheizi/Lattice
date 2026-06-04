@@ -135,9 +135,19 @@ async fn handle_frame(
                 }
 
                 tracing::debug!("Signature verified for {}", envelope.msg_id);
+            } else if !state.allow_unsigned {
+                // 强制验签：无签名消息默认拒绝（除非显式配置 allow_unsigned）。
+                tracing::warn!(
+                    "Rejecting unsigned message {} from {} (allow_unsigned=false)",
+                    envelope.msg_id,
+                    envelope.sender_fingerprint
+                );
+                return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
             } else {
-                // TODO(P2/P3): 无签名消息需要纳入 DAG/soft-fail 策略，目前沿用旧行为以保持兼容。
-                tracing::debug!("Message {} has no signature; accepting legacy path", envelope.msg_id);
+                tracing::debug!(
+                    "Accepting unsigned message {} (allow_unsigned=true)",
+                    envelope.msg_id
+                );
             }
 
             let verified = !envelope.signature.is_empty();
@@ -182,13 +192,54 @@ async fn handle_frame(
         }
 
         Some(frame::Body::RoomEvent(ref event)) => {
-            // 让房间事件进入与消息统一的 DAG：补 msg_hash（若空）以便排序对齐。
             let mut event = event.clone();
-            if event.msg_hash.is_empty() {
-                if let Ok(hash) = nextim_crypto::sign::compute_room_event_hash(&event) {
-                    event.msg_hash = hash;
+            // 始终用服务端重算的 hash，不信任客户端来包的 msg_hash。
+            let computed_hash = nextim_crypto::sign::compute_room_event_hash(&event)
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+            if !event.signature.is_empty() {
+                // 取 actor 主公钥验签（含 hash 比对）。
+                let actor_key = state
+                    .storage
+                    .get_contact(&event.actor_fingerprint)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|c| c.identity)
+                    .map(|i| i.ed25519_public_key);
+
+                let verify_error = match actor_key {
+                    Some(key) => match nextim_crypto::sign::verify_room_event(&key, &event) {
+                        Ok(true) => None,
+                        Ok(false) => Some("room event signature returned false".to_string()),
+                        Err(error) => Some(error.to_string()),
+                    },
+                    None => Some(format!(
+                        "missing actor public key for {}",
+                        event.actor_fingerprint
+                    )),
+                };
+
+                if let Some(error) = verify_error {
+                    tracing::warn!(
+                        "Rejecting room event in {} by {}: {}",
+                        event.room_id,
+                        event.actor_fingerprint,
+                        error
+                    );
+                    return Ok(Some(rejected_ack(frame.seq, &event.timestamp.to_string())));
                 }
+            } else if !state.allow_unsigned {
+                tracing::warn!(
+                    "Rejecting unsigned room event in {} by {} (allow_unsigned=false)",
+                    event.room_id,
+                    event.actor_fingerprint
+                );
+                return Ok(Some(rejected_ack(frame.seq, &event.timestamp.to_string())));
             }
+
+            // 落库前用重算 hash 覆盖（防止接受 allow_unsigned 时来包带伪造 hash）。
+            event.msg_hash = computed_hash;
 
             state
                 .storage
@@ -732,6 +783,7 @@ mod tests {
             display_name: "Store".to_string(),
             ws_addr: "127.0.0.1:0".to_string(),
             api_token: String::new(),
+            allow_unsigned: true,
         })
     }
 

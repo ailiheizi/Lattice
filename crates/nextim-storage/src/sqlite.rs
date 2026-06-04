@@ -68,14 +68,15 @@ impl SqliteStorage {
             );
 
             CREATE TABLE IF NOT EXISTS room_events (
+                msg_hash BLOB PRIMARY KEY,
                 room_id TEXT NOT NULL,
                 actor_fingerprint TEXT NOT NULL,
                 event_type INTEGER NOT NULL,
                 target_fingerprint TEXT NOT NULL,
                 timestamp INTEGER NOT NULL,
+                received_ts INTEGER NOT NULL DEFAULT 0,
                 signature BLOB NOT NULL,
-                data BLOB NOT NULL,
-                PRIMARY KEY (room_id, timestamp, actor_fingerprint, target_fingerprint, event_type)
+                data BLOB NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_room_events_room_ts ON room_events(room_id, timestamp);
 
@@ -347,14 +348,20 @@ impl Storage for SqliteStorage {
     async fn save_room_event(&self, event: &RoomEvent) -> Result<()> {
         let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
         let data = event.encode_to_vec();
+        let received_ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
         conn.execute(
-            "INSERT OR REPLACE INTO room_events (room_id, actor_fingerprint, event_type, target_fingerprint, timestamp, signature, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT OR REPLACE INTO room_events (msg_hash, room_id, actor_fingerprint, event_type, target_fingerprint, timestamp, received_ts, signature, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
+                event.msg_hash,
                 event.room_id,
                 event.actor_fingerprint,
                 event.r#type,
                 event.target_fingerprint,
                 event.timestamp as i64,
+                received_ts,
                 event.signature,
                 data,
             ],
@@ -593,6 +600,8 @@ mod tests {
     }
 
     fn make_room_event(room_id: &str, actor: &str, target: &str, ts: u64) -> RoomEvent {
+        // 测试用唯一 msg_hash（room_events 主键），基于参数派生避免冲突。
+        let msg_hash = format!("{room_id}:{actor}:{target}:{ts}").into_bytes();
         RoomEvent {
             room_id: room_id.to_string(),
             actor_fingerprint: actor.to_string(),
@@ -601,7 +610,7 @@ mod tests {
             timestamp: ts,
             signature: b"room-event-signature".to_vec(),
             prev_hashes: Vec::new(),
-            msg_hash: Vec::new(),
+            msg_hash,
         }
     }
 
