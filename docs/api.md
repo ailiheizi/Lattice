@@ -17,6 +17,7 @@
 - DHT / STUN 运行时接线
 - E2EE / 多设备运行时集成
 - README、blueprint、代码入口之间的 contract drift
+- **消息签名验证当前不强制**：响应中的 `"verified"` 字段仅表示"是否通过校验"，但校验未通过（签名为空、无发送方公钥、验签失败）的消息当前仍会被存储。签名内容也尚未覆盖全部元数据，且无 `prev_hash` 链式防伪。详见 `.plans/nextim-dev/docs/gap-remediation.md` 第 7 条。
 
 ## 目录
 

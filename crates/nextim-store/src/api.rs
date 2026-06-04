@@ -10,12 +10,13 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 
+use nextim_core::device::{DeviceManager, DeviceError};
 use nextim_core::room;
 use nextim_core::traits::search::SearchIndex;
 use nextim_core::traits::storage::{Pagination, Storage, TimeRange};
 use nextim_crypto::sign;
 use nextim_proto::group::{HistoryVisibility, Room, RoomType};
-use nextim_proto::identity::{Contact, Identity, TrustLevel};
+use nextim_proto::identity::{Contact, DeviceInfo, Identity, TrustLevel};
 use nextim_proto::message::{
     envelope::Payload, Envelope, Message, MessageContent, MessageType, PlainPayload,
 };
@@ -51,6 +52,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/rooms/:room_id/leave", post(leave_room_handler))
         .route("/keys/one-time", get(get_one_time_keys))
         .route("/keys/generate", post(generate_one_time_keys))
+        .route("/devices", post(register_device))
+        .route("/devices/:user_fingerprint", get(list_devices))
         .layer(cors)
         .with_state(state)
 }
@@ -125,6 +128,7 @@ async fn send_message(
         timestamp,
         signature: vec![],
         payload_hash: vec![],
+        prev_hashes: Vec::new(),
         payload: Some(Payload::Plain(PlainPayload {
             content: Some(MessageContent {
                 r#type: MessageType::Text as i32,
@@ -159,6 +163,9 @@ async fn send_message(
         encrypted: false,
         verified: true, // 自己签的，自然 verified
         encrypted_payload: None,
+        received_ts: timestamp,
+        prev_hashes: Vec::new(),
+        msg_hash: envelope.payload_hash.clone(),
     };
 
     state
@@ -178,6 +185,7 @@ struct GetMessagesQuery {
     until: Option<u64>,
     limit: Option<u32>,
     offset: Option<u64>,
+    member_fingerprint: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -651,4 +659,107 @@ async fn generate_one_time_keys(
 fn base64_encode(data: &[u8]) -> String {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD.encode(data)
+}
+
+fn base64_decode(s: &str) -> Result<Vec<u8>, (StatusCode, String)> {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD
+        .decode(s)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid base64: {e}")))
+}
+
+// === 多设备管理 ===
+
+#[derive(Deserialize)]
+struct RegisterDeviceReq {
+    device_id: String,
+    user_fingerprint: String,
+    device_ed25519_key: String,    // base64
+    device_curve25519_key: String, // base64
+    signature: String,             // base64
+    #[serde(default)]
+    device_name: String,
+}
+
+#[derive(Serialize)]
+struct DeviceResp {
+    device_id: String,
+    user_fingerprint: String,
+    device_ed25519_key: String,
+    device_curve25519_key: String,
+    signature: String,
+    device_name: String,
+    created_at: u64,
+}
+
+impl From<&DeviceInfo> for DeviceResp {
+    fn from(d: &DeviceInfo) -> Self {
+        DeviceResp {
+            device_id: d.device_id.clone(),
+            user_fingerprint: d.user_fingerprint.clone(),
+            device_ed25519_key: base64_encode(&d.device_ed25519_key),
+            device_curve25519_key: base64_encode(&d.device_curve25519_key),
+            signature: base64_encode(&d.signature),
+            device_name: d.device_name.clone(),
+            created_at: d.created_at,
+        }
+    }
+}
+
+/// 注册一台设备到当前用户。使用 `DeviceManager` 校验同用户重复注册，
+/// 通过后持久化到存储。新设备随后可通过 `GET /devices/:user_fingerprint`
+/// 拉取同一用户已注册的设备列表，构成多设备发现的最小闭环。
+async fn register_device(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<RegisterDeviceReq>,
+) -> Result<Json<DeviceResp>, (StatusCode, String)> {
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+
+    let device = DeviceInfo {
+        device_id: req.device_id,
+        user_fingerprint: req.user_fingerprint.clone(),
+        device_ed25519_key: base64_decode(&req.device_ed25519_key)?,
+        device_curve25519_key: base64_decode(&req.device_curve25519_key)?,
+        signature: base64_decode(&req.signature)?,
+        device_name: req.device_name,
+        created_at,
+    };
+
+    // 用已有设备列表初始化管理器并校验（防止同设备 ID 重复、防止跨用户注册）
+    let existing = state
+        .storage
+        .get_devices(&req.user_fingerprint)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let mut manager = DeviceManager::from_devices(&req.user_fingerprint, existing);
+    manager.register_device(device.clone()).map_err(|e| match e {
+        DeviceError::WrongUser => (StatusCode::BAD_REQUEST, e.to_string()),
+        DeviceError::AlreadyRegistered(_) => (StatusCode::CONFLICT, e.to_string()),
+        DeviceError::NotFound(_) => (StatusCode::NOT_FOUND, e.to_string()),
+    })?;
+
+    state
+        .storage
+        .save_device(&device)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(DeviceResp::from(&device)))
+}
+
+/// 列出指定用户的全部已注册设备（多设备同步：新设备据此发现同账号其他设备）。
+async fn list_devices(
+    State(state): State<Arc<AppState>>,
+    Path(user_fingerprint): Path<String>,
+) -> Result<Json<Vec<DeviceResp>>, (StatusCode, String)> {
+    let devices = state
+        .storage
+        .get_devices(&user_fingerprint)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(devices.iter().map(DeviceResp::from).collect()))
 }

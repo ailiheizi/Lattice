@@ -17,6 +17,13 @@ pub struct Pagination {
     pub limit: u32,
 }
 
+/// 挂起区消息：引用了未知父消息的原始 Envelope 存档。
+pub struct PendingMessage {
+    pub msg_hash: Vec<u8>,
+    pub data: Vec<u8>,
+    pub received_ts: u64,
+}
+
 /// 存储层抽象 — 数据持久化
 pub trait Storage: Send + Sync {
     // === 消息 ===
@@ -33,6 +40,31 @@ pub trait Storage: Send + Sync {
     ) -> impl std::future::Future<Output = Result<Option<Message>>> + Send;
     fn delete_message(&self, msg_id: &str)
         -> impl std::future::Future<Output = Result<()>> + Send;
+    fn save_message_edge(
+        &self,
+        child_hash: &[u8],
+        parent_hash: &[u8],
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn get_message_parents(
+        &self,
+        child_hash: &[u8],
+    ) -> impl std::future::Future<Output = Result<Vec<Vec<u8>>>> + Send;
+    fn get_head_message_hashes(&self)
+        -> impl std::future::Future<Output = Result<Vec<Vec<u8>>>> + Send;
+    fn save_pending_message(
+        &self,
+        pending: &PendingMessage,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn get_pending_message(
+        &self,
+        msg_hash: &[u8],
+    ) -> impl std::future::Future<Output = Result<Option<PendingMessage>>> + Send;
+    fn list_pending_messages(&self)
+        -> impl std::future::Future<Output = Result<Vec<PendingMessage>>> + Send;
+    fn delete_pending_message(
+        &self,
+        msg_hash: &[u8],
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
 
     // === 房间/群组 ===
     fn save_room(&self, room: &Room) -> impl std::future::Future<Output = Result<()>> + Send;

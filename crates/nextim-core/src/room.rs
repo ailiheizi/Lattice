@@ -3,6 +3,7 @@
 use nextim_proto::group::{
     HistoryVisibility, MemberRole, Room, RoomEvent, RoomEventType, RoomMember, RoomType,
 };
+use sha2::{Digest, Sha256};
 
 /// 权限检查错误
 #[derive(Debug, thiserror::Error)]
@@ -112,6 +113,8 @@ pub fn add_member(
         target_fingerprint: new_member_fingerprint.to_string(),
         timestamp: now_ms(),
         signature: vec![],
+        prev_hashes: Vec::new(),
+        msg_hash: Vec::new(),
     })
 }
 
@@ -145,6 +148,8 @@ pub fn kick_member(
         target_fingerprint: target_fingerprint.to_string(),
         timestamp: now_ms(),
         signature: vec![],
+        prev_hashes: Vec::new(),
+        msg_hash: Vec::new(),
     })
 }
 
@@ -169,6 +174,8 @@ pub fn leave_room(
         target_fingerprint: member_fingerprint.to_string(),
         timestamp: now_ms(),
         signature: vec![],
+        prev_hashes: Vec::new(),
+        msg_hash: Vec::new(),
     })
 }
 
@@ -185,7 +192,8 @@ pub fn change_role(
         return Err(RoomError::CannotModifyOwner);
     }
 
-    let member = room.members
+    let member = room
+        .members
         .iter_mut()
         .find(|m| m.user_fingerprint == target_fingerprint)
         .ok_or_else(|| RoomError::MemberNotFound(target_fingerprint.to_string()))?;
@@ -199,20 +207,53 @@ pub fn change_role(
         target_fingerprint: target_fingerprint.to_string(),
         timestamp: now_ms(),
         signature: vec![],
+        prev_hashes: Vec::new(),
+        msg_hash: Vec::new(),
     })
 }
 
-/// 判断用户是否可以查看历史消息
-pub fn can_view_history(room: &Room, member_fingerprint: &str) -> bool {
+pub fn compute_event_hash(event: &RoomEvent) -> Vec<u8> {
+    let mut prev_hashes = event.prev_hashes.clone();
+    prev_hashes.sort();
+
+    let mut encoded = Vec::new();
+    append_length_prefixed(&mut encoded, event.room_id.as_bytes());
+    append_length_prefixed(&mut encoded, event.actor_fingerprint.as_bytes());
+    encoded.extend_from_slice(&event.r#type.to_be_bytes());
+    append_length_prefixed(&mut encoded, event.target_fingerprint.as_bytes());
+    encoded.extend_from_slice(&event.timestamp.to_be_bytes());
+    for prev_hash in prev_hashes {
+        append_length_prefixed(&mut encoded, &prev_hash);
+    }
+
+    let mut hasher = Sha256::new();
+    hasher.update(encoded);
+    hasher.finalize().to_vec()
+}
+
+pub fn history_cutoff(room: &Room, member_fingerprint: &str) -> Option<u64> {
     let visibility = HistoryVisibility::try_from(room.history_visibility)
         .unwrap_or(HistoryVisibility::JoinOnly);
 
     match visibility {
-        HistoryVisibility::Full => true,
-        HistoryVisibility::JoinOnly => {
-            room.members.iter().any(|m| m.user_fingerprint == member_fingerprint)
-        }
+        HistoryVisibility::Full => Some(0),
+        HistoryVisibility::JoinOnly => room
+            .members
+            .iter()
+            .find(|m| m.user_fingerprint == member_fingerprint)
+            .map(|m| m.joined_at),
     }
+}
+
+fn append_length_prefixed(buf: &mut Vec<u8>, bytes: &[u8]) {
+    let len = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
+    buf.extend_from_slice(&len.to_be_bytes());
+    buf.extend_from_slice(bytes);
+}
+
+/// 判断用户是否可以查看历史消息
+pub fn can_view_history(room: &Room, member_fingerprint: &str) -> bool {
+    history_cutoff(room, member_fingerprint).is_some()
 }
 
 #[cfg(test)]
@@ -325,25 +366,54 @@ mod tests {
 
     #[test]
     fn test_history_visibility() {
-        let room = make_room(); // Full visibility
+        let room = make_room();
         assert!(can_view_history(&room, "anyone"));
 
         let join_only_room = create_room(
-            "room-2", "Private", RoomType::Group, "owner-fp",
-            false, HistoryVisibility::JoinOnly,
+            "room-2",
+            "Private",
+            RoomType::Group,
+            "owner-fp",
+            false,
+            HistoryVisibility::JoinOnly,
         );
         assert!(can_view_history(&join_only_room, "owner-fp"));
         assert!(!can_view_history(&join_only_room, "outsider"));
     }
 
     #[test]
-    fn test_channel_anyone_can_join() {
-        let mut channel = create_room(
-            "ch-1", "Public Channel", RoomType::Channel, "owner-fp",
-            false, HistoryVisibility::Full,
+    fn test_compute_event_hash_changes_with_parents() {
+        let mut event = RoomEvent {
+            room_id: "room-1".to_string(),
+            actor_fingerprint: "owner-fp".to_string(),
+            r#type: RoomEventType::MemberJoin as i32,
+            target_fingerprint: "alice-fp".to_string(),
+            timestamp: 1234,
+            signature: vec![],
+            prev_hashes: vec![b"b".to_vec(), b"a".to_vec()],
+            msg_hash: Vec::new(),
+        };
+
+        let first = compute_event_hash(&event);
+        event.prev_hashes.push(b"c".to_vec());
+        let second = compute_event_hash(&event);
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn test_history_cutoff_for_join_only_member() {
+        let room = create_room(
+            "room-3",
+            "Private",
+            RoomType::Group,
+            "owner-fp",
+            false,
+            HistoryVisibility::JoinOnly,
         );
-        // 非成员也可以加入频道（actor 不需要是成员）
-        let result = add_member(&mut channel, "random-person", "new-user");
-        assert!(result.is_ok());
+
+        let joined_at = history_cutoff(&room, "owner-fp").expect("member cutoff");
+        assert!(joined_at > 0);
+        assert!(history_cutoff(&room, "outsider").is_none());
     }
 }

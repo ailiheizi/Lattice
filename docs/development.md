@@ -154,29 +154,30 @@ nextim-ffi
 NextIM 使用 Trait 实现可插拔的组件：
 
 ```rust
+// NextIM 使用 Rust 1.75+ 原生 async fn in trait（不依赖 async-trait crate）
+
 // 传输层 Trait
-#[async_trait]
 pub trait Transport: Send + Sync {
-    async fn connect(&mut self, addr: &str) -> Result<()>;
-    async fn send(&self, data: &[u8]) -> Result<()>;
-    async fn recv(&mut self) -> Result<Vec<u8>>;
-    async fn close(&mut self) -> Result<()>;
+    fn connect(&mut self, addr: &str) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn send(&self, data: &[u8]) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn recv(&mut self) -> impl std::future::Future<Output = Result<Vec<u8>>> + Send;
+    fn close(&mut self) -> impl std::future::Future<Output = Result<()>> + Send;
     fn is_connected(&self) -> bool;
 }
 
 // 存储层 Trait
-#[async_trait]
 pub trait Storage: Send + Sync {
-    async fn save_message(&self, msg: &Message) -> Result<()>;
-    async fn get_messages(&self, room_id: &str, range: &TimeRange, page: &Pagination) -> Result<Vec<Message>>;
+    fn save_message(&self, msg: &Message) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn get_messages(&self, room_id: &str, range: &TimeRange, page: &Pagination)
+        -> impl std::future::Future<Output = Result<Vec<Message>>> + Send;
     // ...
 }
 
 // 搜索层 Trait
-#[async_trait]
 pub trait SearchIndex: Send + Sync {
-    async fn index_message(&self, msg: &Message) -> Result<()>;
-    async fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>>;
+    fn index_message(&self, msg: &Message) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn search(&self, query: &str, limit: usize)
+        -> impl std::future::Future<Output = Result<Vec<SearchResult>>> + Send;
     // ...
 }
 ```
@@ -564,20 +565,19 @@ async fn handle_new_endpoint(
 
 ### 3. 添加新的存储方法
 
-在 `crates/nextim-core/src/traits/storage.rs` 中：
+在 `crates/nextim-core/src/traits/storage.rs` 中（原生 async fn in trait）：
 
 ```rust
-#[async_trait]
 pub trait Storage: Send + Sync {
     // 添加新方法
-    async fn new_method(&self, param: &str) -> Result<Data>;
+    fn new_method(&self, param: &str)
+        -> impl std::future::Future<Output = Result<Data>> + Send;
 }
 ```
 
-在 `crates/nextim-storage/src/sqlite.rs` 中实现：
+在 `crates/nextim-storage/src/sqlite.rs` 中实现（直接用 `async fn`，无需宏）：
 
 ```rust
-#[async_trait]
 impl Storage for SqliteStorage {
     async fn new_method(&self, param: &str) -> Result<Data> {
         // 实现逻辑

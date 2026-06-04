@@ -5,9 +5,10 @@ message Envelope {
     string msg_id = 1;
     string sender_fingerprint = 2;
     string recipient_fingerprint = 3;
-    uint64 timestamp = 4;
+    uint64 timestamp = 4; // origin_ts: sender-claimed timestamp, display only, not trusted, not signed.
     bytes signature = 5;
-    bytes payload_hash = 6;
+    bytes payload_hash = 6; // P1/P2 semantics: msg_hash over msg_id|sender|recipient|payload. prev_hashes excluded until P3.
+    repeated bytes prev_hashes = 7; // Parent message hashes for future DAG ordering; stored in P2, not signed in P2.
 
     oneof payload {
         PlainPayload plain = 10;
@@ -52,9 +53,12 @@ message Message {
     string msg_id = 1;
     string room_id = 2;
     string sender_fingerprint = 3;
-    uint64 timestamp = 4;
+    uint64 timestamp = 4; // origin_ts from sender; semantic unchanged.
     MessageContent content = 5;
     bool encrypted = 6;
     bool verified = 7;
     EncryptedPayload encrypted_payload = 8;
+    uint64 received_ts = 9; // Store-local receive timestamp in milliseconds since UNIX_EPOCH.
+    repeated bytes prev_hashes = 10; // Stored DAG parents; not part of P2 msg_hash/signature yet.
+    bytes msg_hash = 11; // P1/P2 msg_hash over msg_id|sender|recipient|payload; prev_hashes excluded until P3.
 }

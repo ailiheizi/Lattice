@@ -101,7 +101,8 @@ transport  storage   crypto
 | 真实集成测试（起 WS/REST 服务的端到端） | ✅ 已落地 | `nextim-tests`，7 集成测试 |
 | Android FFI（UniFFI 绑定） | 🟡 部分 | 接口已暴露，8 测试；未做真机 demo 验证 |
 | E2EE 加密原语（Olm / Megolm） | 🟡 部分 | 加密/解密/序列化已实现；客户端↔Store 运行时联调未闭环 |
-| 多设备密钥同步 | 🟠 待收口 | Storage 有 device/key 接口，缺跨设备分发/收敛逻辑 |
+| 多设备注册与发现 | 🟡 部分 | 设备注册/列表 REST 端点已落地（`/devices`），同账号设备发现可用；密钥跨设备分发未做 |
+| 多设备密钥同步（重加密/收敛） | 🟠 待收口 | `DeviceManager` + Storage device 接口就绪，缺跨设备密钥分发与冲突收敛 |
 | DHT 节点发现 | 🟠 库级 | `nextim-discovery` 有 Kademlia 原语，未接入 store/peer 运行时 |
 | STUN / NAT 穿透 | 🔴 未实现 | 蓝图规划中，无运行时实现 |
 
@@ -125,7 +126,7 @@ cd NextIM
 # 编译所有组件
 cargo build --release
 
-# 运行全部测试（116 个）
+# 运行全部测试（117 个）
 cargo test --workspace
 ```
 
@@ -211,6 +212,8 @@ cargo run --release --bin nextim-peer
 | POST | `/rooms/:room_id/leave` | 离开房间 |
 | GET | `/keys/one-time` | 获取一次性预密钥 |
 | POST | `/keys/generate` | 生成一次性预密钥 |
+| POST | `/devices` | 注册设备到当前用户（同 ID 重复返回 409） |
+| GET | `/devices/:user_fingerprint` | 列出该用户已注册设备（多设备发现） |
 
 ### Peer 管理 API（默认 `:9201`）
 
@@ -295,10 +298,10 @@ cargo test -p nextim-tests
 | nextim-peer | 14 | relay、缓存、可观测性 |
 | nextim-discovery | 11 | Kademlia 路由表 |
 | nextim-ffi | 8 | FFI 绑定 |
-| nextim-tests | 7 | 跨节点 WS/REST 端到端 |
+| nextim-tests | 8 | 跨节点 WS/REST 端到端 + 多设备 |
 | nextim-store | 4 | frame 处理、转发、房间事件 |
 | nextim-transport | 3 | WebSocket 编解码 |
-| **总计** | **116** | 单元 + 集成 |
+| **总计** | **117** | 单元 + 集成 |
 
 > 集成测试（`nextim-tests`）会真实启动 WebSocket 服务器和 REST 路由，验证消息存储/同步、房间事件回放、加密载荷透传、跨 Store 转发等链路。
 

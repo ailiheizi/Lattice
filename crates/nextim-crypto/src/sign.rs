@@ -10,24 +10,59 @@ pub fn sha256(data: &[u8]) -> Vec<u8> {
     hasher.finalize().to_vec()
 }
 
+/// 计算 Envelope 的消息哈希。
+///
+/// 字节布局为：
+/// - `u32::to_be_bytes(msg_id.len())` + `msg_id.as_bytes()`
+/// - `u32::to_be_bytes(sender_fingerprint.len())` + `sender_fingerprint.as_bytes()`
+/// - `u32::to_be_bytes(recipient_fingerprint.len())` + `recipient_fingerprint.as_bytes()`
+/// - `u32::to_be_bytes(payload_bytes.len())` + `payload_bytes`
+/// - `sort(prev_hashes)` 后，对每个 hash 追加 `u32::to_be_bytes(hash.len())` + `hash`
+pub fn compute_msg_hash(envelope: &Envelope) -> Result<Vec<u8>, SignVerifyError> {
+    let payload_bytes = extract_payload_bytes(envelope)?;
+    let mut prev_hashes = envelope.prev_hashes.clone();
+    prev_hashes.sort();
+    let mut encoded = Vec::with_capacity(
+        envelope.msg_id.len()
+            + envelope.sender_fingerprint.len()
+            + envelope.recipient_fingerprint.len()
+            + payload_bytes.len()
+            + prev_hashes.iter().map(|hash| hash.len() + 4).sum::<usize>()
+            + 16,
+    );
+
+    append_length_prefixed(&mut encoded, envelope.msg_id.as_bytes())?;
+    append_length_prefixed(&mut encoded, envelope.sender_fingerprint.as_bytes())?;
+    append_length_prefixed(&mut encoded, envelope.recipient_fingerprint.as_bytes())?;
+    append_length_prefixed(&mut encoded, &payload_bytes)?;
+    for prev_hash in &prev_hashes {
+        append_length_prefixed(&mut encoded, prev_hash)?;
+    }
+
+    Ok(sha256(&encoded))
+}
+
+fn append_length_prefixed(buf: &mut Vec<u8>, bytes: &[u8]) -> Result<(), SignVerifyError> {
+    let len = u32::try_from(bytes.len())
+        .map_err(|_| SignVerifyError::FieldTooLarge("message field exceeds u32 length".into()))?;
+    buf.extend_from_slice(&len.to_be_bytes());
+    buf.extend_from_slice(bytes);
+    Ok(())
+}
+
 /// 验证消息签名
 ///
 /// 检查 Envelope 中的 signature 是否由 sender 的公钥签发，
-/// 同时验证 payload_hash 与实际 payload 的 SHA-256 一致。
+/// 同时验证 payload_hash 与按消息关键字段计算的 msg_hash 一致。
 pub fn verify_envelope(
     sender_public_key: &[u8],
     envelope: &Envelope,
 ) -> Result<bool, SignVerifyError> {
-    // 1. 提取 payload 字节
-    let payload_bytes = extract_payload_bytes(envelope)?;
-
-    // 2. 验证 SHA-256 完整性
-    let computed_hash = sha256(&payload_bytes);
+    let computed_hash = compute_msg_hash(envelope)?;
     if computed_hash != envelope.payload_hash {
         return Err(SignVerifyError::HashMismatch);
     }
 
-    // 3. 验证 Ed25519 签名（签名对象是 payload_hash）
     let verifying_key = VerifyingKey::from_bytes(
         sender_public_key
             .try_into()
@@ -51,19 +86,18 @@ pub fn verify_envelope(
 
 /// 为 Envelope 生成签名和哈希
 ///
-/// 对 payload 计算 SHA-256，然后用私钥签名哈希值。
-/// 返回 (signature, payload_hash)。
+/// 对消息关键字段计算 msg_hash，然后用私钥签名。
+/// 返回 (signature, payload_hash)，其中 payload_hash 的语义已升级为 msg_hash。
 pub fn sign_envelope(
     signing_key: &ed25519_dalek::SigningKey,
     envelope: &Envelope,
 ) -> Result<(Vec<u8>, Vec<u8>), SignVerifyError> {
     use ed25519_dalek::Signer;
 
-    let payload_bytes = extract_payload_bytes(envelope)?;
-    let payload_hash = sha256(&payload_bytes);
-    let signature = signing_key.sign(&payload_hash);
+    let msg_hash = compute_msg_hash(envelope)?;
+    let signature = signing_key.sign(&msg_hash);
 
-    Ok((signature.to_bytes().to_vec(), payload_hash))
+    Ok((signature.to_bytes().to_vec(), msg_hash))
 }
 
 /// 从 Envelope 中提取 payload 字节用于哈希/签名
@@ -106,15 +140,16 @@ pub enum SignVerifyError {
 
     #[error("serialization error: {0}")]
     SerializationError(String),
+
+    #[error("field too large: {0}")]
+    FieldTooLarge(String),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use ed25519_dalek::SigningKey;
-    use nextim_proto::message::{
-        envelope::Payload, MessageContent, MessageType, PlainPayload,
-    };
+    use nextim_proto::message::{envelope::Payload, MessageContent, MessageType, PlainPayload};
     use rand::rngs::OsRng;
 
     fn make_test_envelope() -> Envelope {
@@ -125,6 +160,7 @@ mod tests {
             timestamp: 1234567890,
             signature: vec![],
             payload_hash: vec![],
+            prev_hashes: Vec::new(),
             payload: Some(Payload::Plain(PlainPayload {
                 content: Some(MessageContent {
                     r#type: MessageType::Text as i32,
@@ -137,43 +173,66 @@ mod tests {
         }
     }
 
+    fn sign_test_envelope(signing_key: &SigningKey) -> Envelope {
+        let mut envelope = make_test_envelope();
+        let (sig, hash) = sign_envelope(signing_key, &envelope).unwrap();
+        envelope.signature = sig;
+        envelope.payload_hash = hash;
+        envelope
+    }
+
     #[test]
     fn test_sign_and_verify_envelope() {
         let signing_key = SigningKey::generate(&mut OsRng);
-        let mut envelope = make_test_envelope();
+        let envelope = sign_test_envelope(&signing_key);
 
-        let (sig, hash) = sign_envelope(&signing_key, &envelope).unwrap();
-        envelope.signature = sig;
-        envelope.payload_hash = hash;
-
-        let result = verify_envelope(
-            signing_key.verifying_key().as_bytes(),
-            &envelope,
-        );
+        let result = verify_envelope(signing_key.verifying_key().as_bytes(), &envelope);
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
 
     #[test]
+    fn test_tampered_msg_id_fails() {
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let mut envelope = sign_test_envelope(&signing_key);
+        envelope.msg_id.push('x');
+
+        let result = verify_envelope(signing_key.verifying_key().as_bytes(), &envelope);
+        assert!(matches!(result, Err(SignVerifyError::HashMismatch)));
+    }
+
+    #[test]
+    fn test_tampered_sender_fails() {
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let mut envelope = sign_test_envelope(&signing_key);
+        envelope.sender_fingerprint.push('x');
+
+        let result = verify_envelope(signing_key.verifying_key().as_bytes(), &envelope);
+        assert!(matches!(result, Err(SignVerifyError::HashMismatch)));
+    }
+
+    #[test]
+    fn test_tampered_recipient_fails() {
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let mut envelope = sign_test_envelope(&signing_key);
+        envelope.recipient_fingerprint.push('x');
+
+        let result = verify_envelope(signing_key.verifying_key().as_bytes(), &envelope);
+        assert!(matches!(result, Err(SignVerifyError::HashMismatch)));
+    }
+
+    #[test]
     fn test_tampered_payload_fails() {
         let signing_key = SigningKey::generate(&mut OsRng);
-        let mut envelope = make_test_envelope();
+        let mut envelope = sign_test_envelope(&signing_key);
 
-        let (sig, hash) = sign_envelope(&signing_key, &envelope).unwrap();
-        envelope.signature = sig;
-        envelope.payload_hash = hash;
-
-        // 篡改 payload
         if let Some(Payload::Plain(ref mut p)) = envelope.payload {
             if let Some(ref mut c) = p.content {
                 c.text = "tampered".to_string();
             }
         }
 
-        let result = verify_envelope(
-            signing_key.verifying_key().as_bytes(),
-            &envelope,
-        );
+        let result = verify_envelope(signing_key.verifying_key().as_bytes(), &envelope);
         assert!(matches!(result, Err(SignVerifyError::HashMismatch)));
     }
 
@@ -181,16 +240,9 @@ mod tests {
     fn test_wrong_key_fails() {
         let signing_key = SigningKey::generate(&mut OsRng);
         let wrong_key = SigningKey::generate(&mut OsRng);
-        let mut envelope = make_test_envelope();
+        let envelope = sign_test_envelope(&signing_key);
 
-        let (sig, hash) = sign_envelope(&signing_key, &envelope).unwrap();
-        envelope.signature = sig;
-        envelope.payload_hash = hash;
-
-        let result = verify_envelope(
-            wrong_key.verifying_key().as_bytes(),
-            &envelope,
-        );
+        let result = verify_envelope(wrong_key.verifying_key().as_bytes(), &envelope);
         assert!(matches!(
             result,
             Err(SignVerifyError::SignatureVerificationFailed)
@@ -198,12 +250,41 @@ mod tests {
     }
 
     #[test]
+    fn test_empty_prev_hashes_preserve_legacy_layout() {
+        let envelope = make_test_envelope();
+        let payload_bytes = extract_payload_bytes(&envelope).unwrap();
+        let mut legacy = Vec::new();
+        append_length_prefixed(&mut legacy, envelope.msg_id.as_bytes()).unwrap();
+        append_length_prefixed(&mut legacy, envelope.sender_fingerprint.as_bytes()).unwrap();
+        append_length_prefixed(&mut legacy, envelope.recipient_fingerprint.as_bytes()).unwrap();
+        append_length_prefixed(&mut legacy, &payload_bytes).unwrap();
+
+        assert_eq!(compute_msg_hash(&envelope).unwrap(), sha256(&legacy));
+    }
+
+    #[test]
+    fn test_prev_hashes_are_signed_deterministically() {
+        let mut envelope_a = make_test_envelope();
+        envelope_a.prev_hashes = vec![vec![0xBB], vec![0xAA, 0x01]];
+
+        let mut envelope_b = make_test_envelope();
+        envelope_b.prev_hashes = vec![vec![0xAA, 0x01], vec![0xBB]];
+
+        let mut envelope_tampered = envelope_b.clone();
+        envelope_tampered.prev_hashes.push(vec![0xCC]);
+
+        assert_eq!(compute_msg_hash(&envelope_a).unwrap(), compute_msg_hash(&envelope_b).unwrap());
+        assert_ne!(
+            compute_msg_hash(&envelope_a).unwrap(),
+            compute_msg_hash(&envelope_tampered).unwrap()
+        );
+    }
+
+    #[test]
     fn test_sha256() {
         let hash = sha256(b"hello");
         assert_eq!(hash.len(), 32);
-        // 确定性
         assert_eq!(hash, sha256(b"hello"));
-        // 不同输入不同输出
         assert_ne!(hash, sha256(b"world"));
     }
 }

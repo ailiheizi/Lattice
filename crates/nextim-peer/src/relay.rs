@@ -109,7 +109,24 @@ async fn handle_frame(
 ) -> anyhow::Result<Option<Frame>> {
     match frame.body {
         Some(frame::Body::Message(ref envelope)) => {
-            // 缓存消息，等待接收方来取
+            if envelope.signature.is_empty() {
+                tracing::warn!("Rejecting message {}: missing signature", envelope.msg_id);
+                return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
+            }
+            if envelope.payload_hash.len() != 32 {
+                tracing::warn!(
+                    "Rejecting message {}: invalid payload_hash length {}",
+                    envelope.msg_id,
+                    envelope.payload_hash.len()
+                );
+                return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
+            }
+            if envelope.payload.is_none() {
+                tracing::warn!("Rejecting message {}: missing payload", envelope.msg_id);
+                return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
+            }
+
+            // TODO(D-5): Peer 当前只有结构校验，无发送方公钥，后续按设计文档补 soft-fail/验签策略。
             let recipient = &envelope.recipient_fingerprint;
             let data = frame.encode_to_vec();
 
@@ -117,7 +134,7 @@ async fn handle_frame(
             c.store(recipient, data);
             drop(c);
 
-             {
+            {
                 let mut state = observability.lock().await;
                 state.record_relayed_message();
             }
@@ -219,6 +236,7 @@ async fn handle_frame(
                         messages: envelopes,
                         events,
                         next_batch,
+                        timeline: Vec::new(),
                     },
                 )),
             }))
@@ -238,12 +256,23 @@ async fn handle_frame(
     }
 }
 
+fn rejected_ack(seq: u64, msg_id: &str) -> Frame {
+    Frame {
+        seq,
+        r#type: FrameType::Ack as i32,
+        body: Some(frame::Body::Ack(MessageAck {
+            msg_id: msg_id.to_string(),
+            status: AckStatus::Rejected as i32,
+        })),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::observability::PeerObservability;
     use nextim_proto::{
-        message::Envelope,
+        message::{Envelope, MessageContent, MessageType, PlainPayload, envelope::Payload},
         transport::{frame, AckStatus, FrameType, SyncRequest},
     };
 
@@ -256,9 +285,16 @@ mod tests {
                 sender_fingerprint: "sender".to_string(),
                 recipient_fingerprint: recipient.to_string(),
                 timestamp: 1,
-                signature: vec![],
-                payload_hash: vec![],
-                payload: None,
+                signature: vec![1; 64],
+                payload_hash: vec![2; 32],
+                prev_hashes: Vec::new(),
+                payload: Some(Payload::Plain(PlainPayload {
+                    content: Some(MessageContent {
+                        r#type: MessageType::Text as i32,
+                        text: "hello".to_string(),
+                        ..Default::default()
+                    }),
+                })),
             })),
         }
     }
@@ -306,6 +342,84 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn handle_frame_rejects_message_without_signature() {
+        let cache = Mutex::new(RelayCache::new(10, 60_000));
+        let observability = Arc::new(Mutex::new(PeerObservability::default()));
+        let mut frame = test_message_frame(7, "msg-1", "alice");
+        if let Some(frame::Body::Message(envelope)) = frame.body.as_mut() {
+            envelope.signature.clear();
+        }
+
+        let response = handle_frame(frame, &cache, &observability)
+            .await
+            .unwrap()
+            .expect("message frames should return ack");
+
+        match response.body {
+            Some(frame::Body::Ack(ack)) => {
+                assert_eq!(ack.status, AckStatus::Rejected as i32);
+            }
+            other => panic!("expected ack response, got {other:?}"),
+        }
+
+        let snapshot = observability.lock().await.snapshot();
+        assert_eq!(snapshot.total_relayed, 0);
+        assert!(cache.lock().await.drain_for("alice").is_empty());
+    }
+
+    #[tokio::test]
+    async fn handle_frame_rejects_message_with_invalid_payload_hash_length() {
+        let cache = Mutex::new(RelayCache::new(10, 60_000));
+        let observability = Arc::new(Mutex::new(PeerObservability::default()));
+        let mut frame = test_message_frame(7, "msg-1", "alice");
+        if let Some(frame::Body::Message(envelope)) = frame.body.as_mut() {
+            envelope.payload_hash = vec![2; 31];
+        }
+
+        let response = handle_frame(frame, &cache, &observability)
+            .await
+            .unwrap()
+            .expect("message frames should return ack");
+
+        match response.body {
+            Some(frame::Body::Ack(ack)) => {
+                assert_eq!(ack.status, AckStatus::Rejected as i32);
+            }
+            other => panic!("expected ack response, got {other:?}"),
+        }
+
+        let snapshot = observability.lock().await.snapshot();
+        assert_eq!(snapshot.total_relayed, 0);
+        assert!(cache.lock().await.drain_for("alice").is_empty());
+    }
+
+    #[tokio::test]
+    async fn handle_frame_rejects_message_without_payload() {
+        let cache = Mutex::new(RelayCache::new(10, 60_000));
+        let observability = Arc::new(Mutex::new(PeerObservability::default()));
+        let mut frame = test_message_frame(7, "msg-1", "alice");
+        if let Some(frame::Body::Message(envelope)) = frame.body.as_mut() {
+            envelope.payload = None;
+        }
+
+        let response = handle_frame(frame, &cache, &observability)
+            .await
+            .unwrap()
+            .expect("message frames should return ack");
+
+        match response.body {
+            Some(frame::Body::Ack(ack)) => {
+                assert_eq!(ack.status, AckStatus::Rejected as i32);
+            }
+            other => panic!("expected ack response, got {other:?}"),
+        }
+
+        let snapshot = observability.lock().await.snapshot();
+        assert_eq!(snapshot.total_relayed, 0);
+        assert!(cache.lock().await.drain_for("alice").is_empty());
+    }
+
+    #[tokio::test]
     async fn handle_frame_sync_request_updates_delivered_counter_from_cached_messages() {
         let cache = Mutex::new(RelayCache::new(10, 60_000));
         let observability = Arc::new(Mutex::new(PeerObservability::default()));
@@ -324,6 +438,7 @@ mod tests {
                 body: Some(frame::Body::SyncRequest(SyncRequest {
                     since_timestamp: 0,
                     room_ids: vec!["alice".to_string()],
+                    requester_fingerprint: String::new(),
                 })),
             },
             &cache,

@@ -166,6 +166,9 @@ impl NextImClient {
             encrypted: false,
             verified: true,
             encrypted_payload: None,
+            received_ts: timestamp,
+            prev_hashes: Vec::new(),
+            msg_hash: Vec::new(),
         };
 
         self.rt.block_on(async {

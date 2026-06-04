@@ -1,4 +1,6 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use futures_util::{SinkExt, StreamExt};
 use prost::Message as ProstMessage;
@@ -9,8 +11,9 @@ use tokio_tungstenite::{
     accept_async, connect_async, tungstenite::Message as WsMessage, MaybeTlsStream, WebSocketStream,
 };
 
+use nextim_core::dag::{self, DagNode};
 use nextim_core::traits::search::SearchIndex;
-use nextim_core::traits::storage::Storage;
+use nextim_core::traits::storage::{PendingMessage, Storage};
 use nextim_crypto::sign;
 use nextim_proto::message::Message;
 use nextim_proto::transport::{frame, AckStatus, Frame, FrameType, MessageAck, Pong};
@@ -99,9 +102,7 @@ async fn handle_frame(
 ) -> anyhow::Result<Option<Frame>> {
     match frame.body {
         Some(frame::Body::Message(ref envelope)) => {
-            // 验证签名（如果有）
-            let verified = if !envelope.signature.is_empty() && !envelope.payload_hash.is_empty() {
-                // 尝试从联系人获取发送方公钥
+            if !envelope.signature.is_empty() {
                 let sender_key = state
                     .storage
                     .get_contact(&envelope.sender_fingerprint)
@@ -111,66 +112,41 @@ async fn handle_frame(
                     .and_then(|c| c.identity)
                     .map(|i| i.ed25519_public_key);
 
-                if let Some(key) = sender_key {
-                    match sign::verify_envelope(&key, envelope) {
-                        Ok(true) => {
-                            tracing::debug!("Signature verified for {}", envelope.msg_id);
-                            true
-                        }
-                        _ => {
-                            tracing::warn!("Signature verification failed for {}", envelope.msg_id);
-                            false
-                        }
-                    }
-                } else {
-                    tracing::debug!(
-                        "No public key for sender {}, skipping verification",
+                let verification_error = match sender_key {
+                    Some(key) => match sign::verify_envelope(&key, envelope) {
+                        Ok(true) => None,
+                        Ok(false) => Some("signature verification returned false".to_string()),
+                        Err(error) => Some(error.to_string()),
+                    },
+                    None => Some(format!(
+                        "missing sender public key for {}",
                         envelope.sender_fingerprint
+                    )),
+                };
+
+                if let Some(error) = verification_error {
+                    tracing::warn!(
+                        "Rejecting signed message {} from {}: {}",
+                        envelope.msg_id,
+                        envelope.sender_fingerprint,
+                        error
                     );
-                    false
+                    return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
                 }
+
+                tracing::debug!("Signature verified for {}", envelope.msg_id);
             } else {
-                false
-            };
+                // TODO(P2/P3): 无签名消息需要纳入 DAG/soft-fail 策略，目前沿用旧行为以保持兼容。
+                tracing::debug!("Message {} has no signature; accepting legacy path", envelope.msg_id);
+            }
 
-            // 存储消息
-            let msg = Message {
-                msg_id: envelope.msg_id.clone(),
-                room_id: envelope.recipient_fingerprint.clone(),
-                sender_fingerprint: envelope.sender_fingerprint.clone(),
-                timestamp: envelope.timestamp,
-                content: match &envelope.payload {
-                    Some(nextim_proto::message::envelope::Payload::Plain(p)) => p.content.clone(),
-                    _ => None,
-                },
-                encrypted: matches!(
-                    envelope.payload,
-                    Some(nextim_proto::message::envelope::Payload::Encrypted(_))
-                ),
-                verified,
-                encrypted_payload: match &envelope.payload {
-                    Some(nextim_proto::message::envelope::Payload::Encrypted(payload)) => {
-                        Some(payload.clone())
-                    }
-                    _ => None,
-                },
-            };
+            let verified = !envelope.signature.is_empty();
+            let received_ts = now_received_ts();
+            let msg_hash = sign::compute_msg_hash(envelope)
+                .map_err(|e| anyhow::anyhow!("compute message hash for {}: {e}", envelope.msg_id))?;
 
-            state
-                .storage
-                .save_message(&msg)
-                .await
-                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            persist_incoming_message(state, envelope, received_ts, verified, msg_hash.clone()).await?;
 
-            let _ = state.search.index_message(&msg).await;
-
-            tracing::info!(
-                "Stored message {} from {}",
-                msg.msg_id,
-                msg.sender_fingerprint
-            );
-
-            // 实时推送：如果接收方在线，直接推送
             let recipient = &envelope.recipient_fingerprint;
             let frame_data = frame.encode_to_vec();
             {
@@ -187,7 +163,6 @@ async fn handle_frame(
                 }
             }
 
-            // 也尝试转发给接收方的 Store（异步，不阻塞）
             let recipient_clone = recipient.to_owned();
             let state = Arc::clone(state);
             tokio::spawn(async move {
@@ -196,7 +171,6 @@ async fn handle_frame(
                 }
             });
 
-            // 返回 ACK
             Ok(Some(Frame {
                 seq: frame.seq,
                 r#type: FrameType::Ack as i32,
@@ -262,6 +236,7 @@ async fn handle_frame(
             };
 
             let mut envelopes = Vec::new();
+            let mut ordered_messages_by_hash = BTreeMap::new();
             let mut events = Vec::new();
             for room_id in &room_ids {
                 let msgs = state
@@ -269,7 +244,8 @@ async fn handle_frame(
                     .get_messages(room_id, &range, &page)
                     .await
                     .map_err(|e| anyhow::anyhow!("{e}"))?;
-                for msg in msgs {
+                for msg in order_messages_for_sync(msgs) {
+                    ordered_messages_by_hash.insert(msg.msg_hash.clone(), msg.clone());
                     let payload = if let Some(encrypted_payload) = msg.encrypted_payload {
                         Some(nextim_proto::message::envelope::Payload::Encrypted(
                             encrypted_payload,
@@ -287,7 +263,8 @@ async fn handle_frame(
                         recipient_fingerprint: msg.room_id,
                         timestamp: msg.timestamp,
                         signature: vec![],
-                        payload_hash: vec![],
+                        payload_hash: msg.msg_hash,
+                        prev_hashes: msg.prev_hashes,
                         payload,
                     });
                 }
@@ -302,7 +279,12 @@ async fn handle_frame(
 
             let next_batch = envelopes
                 .iter()
-                .map(|e| e.timestamp)
+                .map(|e| e.payload_hash.as_slice())
+                .filter_map(|hash| {
+                    ordered_messages_by_hash
+                        .get(hash)
+                        .map(|message| message.received_ts)
+                })
                 .chain(events.iter().map(|event| event.timestamp))
                 .max()
                 .map(|timestamp| timestamp + 1)
@@ -316,6 +298,7 @@ async fn handle_frame(
                         messages: envelopes,
                         events,
                         next_batch,
+                        timeline: Vec::new(),
                     },
                 )),
             }))
@@ -326,6 +309,215 @@ async fn handle_frame(
             Ok(None)
         }
     }
+}
+
+fn rejected_ack(seq: u64, msg_id: &str) -> Frame {
+    Frame {
+        seq,
+        r#type: FrameType::Ack as i32,
+        body: Some(frame::Body::Ack(MessageAck {
+            msg_id: msg_id.to_string(),
+            status: AckStatus::Rejected as i32,
+        })),
+    }
+}
+
+fn now_received_ts() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+fn envelope_to_message(
+    envelope: &nextim_proto::message::Envelope,
+    received_ts: u64,
+    verified: bool,
+    msg_hash: Vec<u8>,
+) -> Message {
+    Message {
+        msg_id: envelope.msg_id.clone(),
+        room_id: envelope.recipient_fingerprint.clone(),
+        sender_fingerprint: envelope.sender_fingerprint.clone(),
+        timestamp: envelope.timestamp,
+        content: match &envelope.payload {
+            Some(nextim_proto::message::envelope::Payload::Plain(p)) => p.content.clone(),
+            _ => None,
+        },
+        encrypted: matches!(
+            envelope.payload,
+            Some(nextim_proto::message::envelope::Payload::Encrypted(_))
+        ),
+        verified,
+        encrypted_payload: match &envelope.payload {
+            Some(nextim_proto::message::envelope::Payload::Encrypted(payload)) => {
+                Some(payload.clone())
+            }
+            _ => None,
+        },
+        received_ts,
+        prev_hashes: envelope.prev_hashes.clone(),
+        msg_hash,
+    }
+}
+
+async fn get_all_messages_for_room(state: &Arc<AppState>, room_id: &str) -> anyhow::Result<Vec<Message>> {
+    use nextim_core::traits::storage::{Pagination, TimeRange};
+
+    state
+        .storage
+        .get_messages(
+            room_id,
+            &TimeRange {
+                start: 0,
+                end: i64::MAX as u64,
+            },
+            &Pagination {
+                offset: 0,
+                limit: u32::MAX,
+            },
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))
+}
+
+async fn known_hashes_for_room(state: &Arc<AppState>, room_id: &str) -> anyhow::Result<BTreeSet<Vec<u8>>> {
+    let messages = get_all_messages_for_room(state, room_id).await?;
+    Ok(messages.into_iter().map(|message| message.msg_hash).collect())
+}
+
+fn collect_missing_parents(message: &Message, known_hashes: &BTreeSet<Vec<u8>>) -> Vec<Vec<u8>> {
+    dag::missing_parents(
+        &DagNode {
+            msg_hash: message.msg_hash.clone(),
+            prev_hashes: message.prev_hashes.clone(),
+            received_ts: message.received_ts,
+        },
+        known_hashes,
+    )
+}
+
+async fn store_finalized_message(state: &Arc<AppState>, msg: &Message) -> anyhow::Result<()> {
+    state
+        .storage
+        .save_message(msg)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+    for parent_hash in &msg.prev_hashes {
+        state
+            .storage
+            .save_message_edge(&msg.msg_hash, parent_hash)
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+    }
+
+    let _ = state.search.index_message(msg).await;
+    Ok(())
+}
+
+async fn promote_pending_messages(state: &Arc<AppState>, room_id: &str) -> anyhow::Result<()> {
+    loop {
+        let pending = state
+            .storage
+            .list_pending_messages()
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let mut promoted_any = false;
+
+        for pending_msg in pending {
+            let envelope = nextim_proto::message::Envelope::decode(pending_msg.data.as_slice())
+                .map_err(|e| anyhow::anyhow!("decode pending envelope: {e}"))?;
+            if envelope.recipient_fingerprint != room_id {
+                continue;
+            }
+
+            let message = envelope_to_message(&envelope, pending_msg.received_ts, true, pending_msg.msg_hash.clone());
+            let known_hashes = known_hashes_for_room(state, room_id).await?;
+            if !collect_missing_parents(&message, &known_hashes).is_empty() {
+                continue;
+            }
+
+            store_finalized_message(state, &message).await?;
+            state
+                .storage
+                .delete_pending_message(&pending_msg.msg_hash)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            tracing::info!(
+                "Promoted pending message {} into room DAG",
+                message.msg_id
+            );
+            promoted_any = true;
+        }
+
+        if !promoted_any {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+async fn persist_incoming_message(
+    state: &Arc<AppState>,
+    envelope: &nextim_proto::message::Envelope,
+    received_ts: u64,
+    verified: bool,
+    msg_hash: Vec<u8>,
+) -> anyhow::Result<()> {
+    let message = envelope_to_message(envelope, received_ts, verified, msg_hash.clone());
+    let known_hashes = known_hashes_for_room(state, &message.room_id).await?;
+    let missing_parents = collect_missing_parents(&message, &known_hashes);
+
+    if !missing_parents.is_empty() {
+        state
+            .storage
+            .save_pending_message(&PendingMessage {
+                msg_hash: msg_hash.clone(),
+                data: envelope.encode_to_vec(),
+                received_ts,
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        tracing::info!(
+            "Stored pending message {} with {} missing parent(s)",
+            message.msg_id,
+            missing_parents.len()
+        );
+        tracing::debug!(
+            "TODO(P4): fetch missing parent hashes for {}: {:?}",
+            message.msg_id,
+            missing_parents
+        );
+        return Ok(());
+    }
+
+    store_finalized_message(state, &message).await?;
+    promote_pending_messages(state, &message.room_id).await?;
+    tracing::info!("Stored message {} from {}", message.msg_id, message.sender_fingerprint);
+    Ok(())
+}
+
+fn order_messages_for_sync(messages: Vec<Message>) -> Vec<Message> {
+    let nodes: Vec<DagNode> = messages
+        .iter()
+        .map(|message| DagNode {
+            msg_hash: message.msg_hash.clone(),
+            prev_hashes: message.prev_hashes.clone(),
+            received_ts: message.received_ts,
+        })
+        .collect();
+    let ordered = dag::deterministic_order(&nodes);
+    let mut by_hash = BTreeMap::new();
+    for message in messages {
+        by_hash.insert(message.msg_hash.clone(), message);
+    }
+
+    ordered
+        .into_iter()
+        .filter_map(|node| by_hash.remove(&node.msg_hash))
+        .collect()
 }
 
 /// 尝试转发消息给接收方 Store
@@ -499,6 +691,7 @@ mod tests {
                 timestamp: 123,
                 signature: vec![],
                 payload_hash: vec![],
+                prev_hashes: Vec::new(),
                 payload: Some(Payload::Plain(PlainPayload {
                     content: Some(MessageContent {
                         r#type: MessageType::Text as i32,
@@ -521,6 +714,8 @@ mod tests {
                 target_fingerprint: "alice-fp".to_string(),
                 timestamp: 456,
                 signature: vec![],
+                prev_hashes: Vec::new(),
+                msg_hash: Vec::new(),
             })),
         }
     }
@@ -706,5 +901,115 @@ mod tests {
         assert_eq!(events[0].actor_fingerprint, "owner-fp");
         assert_eq!(events[0].target_fingerprint, "alice-fp");
         assert_eq!(events[0].timestamp, 456);
+    }
+
+    #[tokio::test]
+    async fn handle_frame_message_stores_received_ts_and_msg_hash() {
+        let state = test_state();
+        let sink = test_sender_sink().await;
+        let frame = test_frame("recipient-fp");
+        let expected_hash = if let Some(frame::Body::Message(envelope)) = frame.body.as_ref() {
+            sign::compute_msg_hash(envelope).expect("compute expected message hash")
+        } else {
+            panic!("expected message frame");
+        };
+
+        let response = handle_frame(frame, &state, &sink)
+            .await
+            .expect("message handling should not error")
+            .expect("message should return ack");
+        assert_eq!(response.r#type, FrameType::Ack as i32);
+
+        let stored = state
+            .storage
+            .get_message("msg-1")
+            .await
+            .expect("query stored message")
+            .expect("message stored");
+        assert!(stored.received_ts > 0);
+        assert_eq!(stored.msg_hash, expected_hash);
+        assert!(stored.prev_hashes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn handle_frame_message_with_missing_parent_goes_pending_until_parent_arrives() {
+        let state = test_state();
+        let sink = test_sender_sink().await;
+
+        let parent_envelope = Envelope {
+            msg_id: "parent-msg".to_string(),
+            sender_fingerprint: "sender-fp".to_string(),
+            recipient_fingerprint: "room-pending".to_string(),
+            timestamp: 100,
+            signature: vec![],
+            payload_hash: vec![0xAA, 0xBB],
+            prev_hashes: Vec::new(),
+            payload: Some(Payload::Plain(PlainPayload {
+                content: Some(MessageContent {
+                    r#type: MessageType::Text as i32,
+                    text: "parent".to_string(),
+                    ..Default::default()
+                }),
+            })),
+        };
+        let parent_hash = sign::compute_msg_hash(&parent_envelope).expect("parent hash");
+
+        let child_envelope = Envelope {
+            msg_id: "child-msg".to_string(),
+            sender_fingerprint: "sender-fp".to_string(),
+            recipient_fingerprint: "room-pending".to_string(),
+            timestamp: 200,
+            signature: vec![],
+            payload_hash: vec![0xCC, 0xDD],
+            prev_hashes: vec![parent_hash.clone()],
+            payload: Some(Payload::Plain(PlainPayload {
+                content: Some(MessageContent {
+                    r#type: MessageType::Text as i32,
+                    text: "child".to_string(),
+                    ..Default::default()
+                }),
+            })),
+        };
+        let child_hash = sign::compute_msg_hash(&child_envelope).expect("child hash");
+        let child_frame = Frame {
+            seq: 7,
+            r#type: FrameType::Message as i32,
+            body: Some(frame::Body::Message(child_envelope.clone())),
+        };
+
+        handle_frame(child_frame, &state, &sink)
+            .await
+            .expect("child message should be accepted")
+            .expect("child message should return ack");
+
+        assert!(state.storage.get_message("child-msg").await.unwrap().is_none());
+        assert!(state.storage.get_pending_message(&child_hash).await.unwrap().is_some());
+
+        let parent_frame = Frame {
+            seq: 8,
+            r#type: FrameType::Message as i32,
+            body: Some(frame::Body::Message(parent_envelope)),
+        };
+
+        handle_frame(parent_frame, &state, &sink)
+            .await
+            .expect("parent message should be accepted")
+            .expect("parent message should return ack");
+
+        assert!(state.storage.get_pending_message(&child_hash).await.unwrap().is_none());
+        let child = state
+            .storage
+            .get_message("child-msg")
+            .await
+            .unwrap()
+            .expect("child promoted");
+        assert_eq!(child.prev_hashes, vec![parent_hash.clone()]);
+        let parent = state
+            .storage
+            .get_message("parent-msg")
+            .await
+            .unwrap()
+            .expect("parent stored");
+        assert_eq!(parent.msg_hash, parent_hash);
     }
 }

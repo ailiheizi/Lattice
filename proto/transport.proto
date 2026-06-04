@@ -54,12 +54,23 @@ message KeyRequest {
 message SyncRequest {
     uint64 since_timestamp = 1;
     repeated string room_ids = 2;
+    string requester_fingerprint = 3;
+}
+
+message SyncTimelineItem {
+    bytes msg_hash = 1;
+
+    oneof item {
+        nextim.message.Envelope message = 10;
+        nextim.group.RoomEvent room_event = 11;
+    }
 }
 
 message SyncResponse {
     repeated nextim.message.Envelope messages = 1;
     repeated nextim.group.RoomEvent events = 2;
     uint64 next_batch = 3;
+    repeated SyncTimelineItem timeline = 4;
 }
 
 message Ping {

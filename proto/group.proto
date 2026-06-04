@@ -42,6 +42,8 @@ message RoomEvent {
     string target_fingerprint = 4;
     uint64 timestamp = 5;
     bytes signature = 6;
+    repeated bytes prev_hashes = 7;
+    bytes msg_hash = 8;
 }
 
 enum RoomEventType {

@@ -283,6 +283,9 @@ mod tests {
             encrypted: false,
             verified: true,
             encrypted_payload: None,
+            received_ts: 0,
+            prev_hashes: Vec::new(),
+            msg_hash: Vec::new(),
         }
     }
 

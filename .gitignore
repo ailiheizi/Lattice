@@ -78,3 +78,6 @@ Thumbs.db
 
 # Reference materials
 reference/
+
+# Playwright MCP 临时产物
+.playwright-mcp/

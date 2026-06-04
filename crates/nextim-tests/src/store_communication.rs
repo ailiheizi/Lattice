@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use nextim_core::traits::storage::Storage;
-use nextim_crypto::{identity::MasterKeyPair, olm::OlmAccount};
+use nextim_crypto::{identity::MasterKeyPair, olm::OlmAccount, sign};
 use nextim_proto::{
     group::{Room, RoomEvent, RoomEventType},
     identity::{Contact, Identity},
@@ -59,6 +59,7 @@ fn make_envelope(msg_id: &str, sender: &str, recipient: &str, text: &str) -> Env
         timestamp: 1000,
         signature: vec![],
         payload_hash: vec![],
+        prev_hashes: Vec::new(),
         payload: Some(Payload::Plain(PlainPayload {
             content: Some(MessageContent {
                 r#type: MessageType::Text as i32,
@@ -77,12 +78,33 @@ fn make_encrypted_envelope(msg_id: &str, sender: &str, recipient: &str) -> Envel
         timestamp: 1000,
         signature: vec![],
         payload_hash: vec![],
+        prev_hashes: Vec::new(),
         payload: Some(Payload::Encrypted(EncryptedPayload {
             ciphertext: b"encrypted-store-sync".to_vec(),
             session_id: "olm-session-1".to_string(),
             message_index: 42,
             encryption_type: EncryptionType::Olm as i32,
         })),
+    }
+}
+
+fn sign_envelope_for_test(identity: &MasterKeyPair, mut envelope: Envelope) -> Envelope {
+    let msg_hash = sign::compute_msg_hash(&envelope).expect("compute message hash");
+    envelope.signature = identity.sign(&msg_hash);
+    envelope.payload_hash = msg_hash;
+    envelope
+}
+
+fn make_signed_contact(identity: &MasterKeyPair, store_address: &str) -> Contact {
+    Contact {
+        identity: Some(Identity {
+            fingerprint: identity.fingerprint(),
+            display_name: "Sender".to_string(),
+            ed25519_public_key: identity.verifying_key().as_bytes().to_vec(),
+            ..Default::default()
+        }),
+        store_address: store_address.to_string(),
+        ..Default::default()
     }
 }
 
@@ -94,6 +116,8 @@ fn make_room_event(room_id: &str, actor: &str, target: &str, timestamp: u64) -> 
         target_fingerprint: target.to_string(),
         timestamp,
         signature: b"room-event-signature".to_vec(),
+        prev_hashes: Vec::new(),
+        msg_hash: Vec::new(),
     }
 }
 
@@ -160,6 +184,7 @@ async fn spawn_ack_store() -> (String, oneshot::Receiver<Vec<u8>>, tokio::task::
 async fn real_ws_server_stores_and_syncs_messages() {
     let (fixture, url, server_handle) = spawn_real_store_server().await;
     let room = "sync-room";
+    let sender_identity = MasterKeyPair::generate();
 
     fixture
         .state
@@ -173,10 +198,19 @@ async fn real_ws_server_stores_and_syncs_messages() {
         })
         .await
         .unwrap();
+    fixture
+        .state
+        .storage
+        .save_contact(&make_signed_contact(&sender_identity, ""))
+        .await
+        .unwrap();
 
     let (mut ws, _) = connect_async(&url).await.unwrap();
 
-    let env = make_envelope("msg-001", "alice", room, "hello store sync");
+    let env = sign_envelope_for_test(
+        &sender_identity,
+        make_envelope("msg-001", &sender_identity.fingerprint(), room, "hello store sync"),
+    );
     let frame = Frame {
         seq: 1,
         r#type: FrameType::Message as i32,
@@ -206,6 +240,17 @@ async fn real_ws_server_stores_and_syncs_messages() {
         .unwrap();
     assert_eq!(stored.room_id, room);
     assert_eq!(stored.content.unwrap().text, "hello store sync");
+    assert!(stored.verified);
+    assert!(stored.received_ts > 0);
+    let expected_hash = sign::compute_msg_hash(&make_envelope(
+        "msg-001",
+        &sender_identity.fingerprint(),
+        room,
+        "hello store sync",
+    ))
+    .unwrap();
+    assert_eq!(stored.msg_hash, expected_hash);
+    assert!(stored.prev_hashes.is_empty());
 
     let sync = Frame {
         seq: 2,
@@ -213,6 +258,7 @@ async fn real_ws_server_stores_and_syncs_messages() {
         body: Some(frame::Body::SyncRequest(SyncRequest {
             since_timestamp: 0,
             room_ids: vec![room.to_string()],
+            requester_fingerprint: String::new(),
         })),
     };
     ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
@@ -227,7 +273,7 @@ async fn real_ws_server_stores_and_syncs_messages() {
         assert_eq!(response.messages.len(), 1);
         assert!(response.events.is_empty(), "room events are not currently included in store sync responses");
         assert_eq!(response.messages[0].msg_id, "msg-001");
-        assert_eq!(response.next_batch, 1001);
+        assert_eq!(response.next_batch, stored.received_ts + 1);
         let payload = response.messages[0].payload.as_ref().unwrap();
         match payload {
             Payload::Plain(plain) => {
@@ -235,6 +281,182 @@ async fn real_ws_server_stores_and_syncs_messages() {
             }
             other => panic!("expected plain payload, got {other:?}"),
         }
+    } else {
+        panic!("expected sync response body");
+    }
+
+    ws.close(None).await.unwrap();
+    server_handle.abort();
+}
+
+#[tokio::test]
+async fn real_ws_server_rejects_tampered_signed_messages() {
+    let (fixture, url, server_handle) = spawn_real_store_server().await;
+    let room = "tamper-room";
+    let sender_identity = MasterKeyPair::generate();
+
+    fixture
+        .state
+        .storage
+        .save_room(&Room {
+            room_id: room.to_string(),
+            name: "tamper room".to_string(),
+            creator_fingerprint: "creator".to_string(),
+            members: vec![],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    fixture
+        .state
+        .storage
+        .save_contact(&make_signed_contact(&sender_identity, ""))
+        .await
+        .unwrap();
+
+    let (mut ws, _) = connect_async(&url).await.unwrap();
+
+    let mut env = sign_envelope_for_test(
+        &sender_identity,
+        make_envelope("msg-tampered", &sender_identity.fingerprint(), room, "hello tamper"),
+    );
+    if let Some(Payload::Plain(plain)) = env.payload.as_mut() {
+        if let Some(content) = plain.content.as_mut() {
+            content.text = "tampered text".to_string();
+        }
+    }
+
+    let frame = Frame {
+        seq: 9,
+        r#type: FrameType::Message as i32,
+        body: Some(frame::Body::Message(env)),
+    };
+    ws.send(WsMessage::Binary(frame.encode_to_vec().into())).await.unwrap();
+
+    let ack = ws.next().await.unwrap().unwrap();
+    let ack_frame = match ack {
+        WsMessage::Binary(data) => Frame::decode(data.as_ref()).unwrap(),
+        other => panic!("expected binary ack, got {other:?}"),
+    };
+    assert_eq!(ack_frame.r#type, FrameType::Ack as i32);
+    if let Some(frame::Body::Ack(ack)) = ack_frame.body {
+        assert_eq!(ack.msg_id, "msg-tampered");
+        assert_eq!(ack.status, AckStatus::Rejected as i32);
+    } else {
+        panic!("expected ack body");
+    }
+
+    let stored = fixture
+        .state
+        .storage
+        .get_message("msg-tampered")
+        .await
+        .unwrap();
+    assert!(stored.is_none(), "tampered message must not be stored");
+
+    ws.close(None).await.unwrap();
+    server_handle.abort();
+}
+
+#[tokio::test]
+async fn real_ws_server_holds_out_of_order_messages_until_parent_arrives() {
+    let (fixture, url, server_handle) = spawn_real_store_server().await;
+    let room = "pending-room";
+    let sender_identity = MasterKeyPair::generate();
+
+    fixture
+        .state
+        .storage
+        .save_room(&Room {
+            room_id: room.to_string(),
+            name: "pending room".to_string(),
+            creator_fingerprint: "creator".to_string(),
+            members: vec![],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    fixture
+        .state
+        .storage
+        .save_contact(&make_signed_contact(&sender_identity, ""))
+        .await
+        .unwrap();
+
+    let parent = sign_envelope_for_test(
+        &sender_identity,
+        make_envelope("msg-parent", &sender_identity.fingerprint(), room, "parent"),
+    );
+    let parent_hash = parent.payload_hash.clone();
+    let mut child = make_envelope("msg-child", &sender_identity.fingerprint(), room, "child");
+    child.prev_hashes = vec![parent_hash.clone()];
+    let child = sign_envelope_for_test(&sender_identity, child);
+
+    let (mut ws, _) = connect_async(&url).await.unwrap();
+
+    let child_frame = Frame {
+        seq: 11,
+        r#type: FrameType::Message as i32,
+        body: Some(frame::Body::Message(child.clone())),
+    };
+    ws.send(WsMessage::Binary(child_frame.encode_to_vec().into())).await.unwrap();
+    let _ = ws.next().await.unwrap().unwrap();
+
+    assert!(fixture.state.storage.get_message("msg-child").await.unwrap().is_none());
+    assert!(fixture
+        .state
+        .storage
+        .get_pending_message(&child.payload_hash)
+        .await
+        .unwrap()
+        .is_some());
+
+    let sync = Frame {
+        seq: 12,
+        r#type: FrameType::SyncRequest as i32,
+        body: Some(frame::Body::SyncRequest(SyncRequest {
+            since_timestamp: 0,
+            room_ids: vec![room.to_string()],
+            requester_fingerprint: String::new(),
+        })),
+    };
+    ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
+    let pending_sync = ws.next().await.unwrap().unwrap();
+    let pending_sync_frame = match pending_sync {
+        WsMessage::Binary(data) => Frame::decode(data.as_ref()).unwrap(),
+        other => panic!("expected binary sync response, got {other:?}"),
+    };
+    if let Some(frame::Body::SyncResponse(response)) = pending_sync_frame.body {
+        assert!(response.messages.is_empty());
+    } else {
+        panic!("expected sync response body");
+    }
+
+    let parent_frame = Frame {
+        seq: 13,
+        r#type: FrameType::Message as i32,
+        body: Some(frame::Body::Message(parent)),
+    };
+    ws.send(WsMessage::Binary(parent_frame.encode_to_vec().into())).await.unwrap();
+    let _ = ws.next().await.unwrap().unwrap();
+
+    assert!(fixture
+        .state
+        .storage
+        .get_pending_message(&child.payload_hash)
+        .await
+        .unwrap()
+        .is_none());
+
+    ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
+    let promoted_sync = ws.next().await.unwrap().unwrap();
+    let promoted_sync_frame = match promoted_sync {
+        WsMessage::Binary(data) => Frame::decode(data.as_ref()).unwrap(),
+        other => panic!("expected binary sync response, got {other:?}"),
+    };
+    if let Some(frame::Body::SyncResponse(response)) = promoted_sync_frame.body {
+        let ids: Vec<_> = response.messages.into_iter().map(|msg| msg.msg_id).collect();
+        assert_eq!(ids, vec!["msg-parent".to_string(), "msg-child".to_string()]);
     } else {
         panic!("expected sync response body");
     }
@@ -305,6 +527,7 @@ async fn real_ws_server_stores_and_syncs_room_events() {
         body: Some(frame::Body::SyncRequest(SyncRequest {
             since_timestamp: 0,
             room_ids: vec![room.to_string()],
+            requester_fingerprint: String::new(),
         })),
     };
     ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
@@ -335,6 +558,7 @@ async fn real_ws_server_stores_and_syncs_room_events() {
 async fn real_ws_server_preserves_encrypted_payloads_during_sync() {
     let (fixture, url, server_handle) = spawn_real_store_server().await;
     let room = "encrypted-sync-room";
+    let sender_identity = MasterKeyPair::generate();
 
     fixture
         .state
@@ -348,10 +572,19 @@ async fn real_ws_server_preserves_encrypted_payloads_during_sync() {
         })
         .await
         .unwrap();
+    fixture
+        .state
+        .storage
+        .save_contact(&make_signed_contact(&sender_identity, ""))
+        .await
+        .unwrap();
 
     let (mut ws, _) = connect_async(&url).await.unwrap();
 
-    let env = make_encrypted_envelope("msg-enc-001", "alice", room);
+    let env = sign_envelope_for_test(
+        &sender_identity,
+        make_encrypted_envelope("msg-enc-001", &sender_identity.fingerprint(), room),
+    );
     let frame = Frame {
         seq: 1,
         r#type: FrameType::Message as i32,
@@ -376,6 +609,7 @@ async fn real_ws_server_preserves_encrypted_payloads_during_sync() {
     assert_eq!(stored.room_id, room);
     assert!(stored.encrypted);
     assert!(stored.content.is_none());
+    assert!(stored.verified);
     let stored_payload = stored.encrypted_payload.as_ref().expect("encrypted payload stored");
     assert_eq!(stored_payload.ciphertext, b"encrypted-store-sync".to_vec());
     assert_eq!(stored_payload.session_id, "olm-session-1");
@@ -388,6 +622,7 @@ async fn real_ws_server_preserves_encrypted_payloads_during_sync() {
         body: Some(frame::Body::SyncRequest(SyncRequest {
             since_timestamp: 0,
             room_ids: vec![room.to_string()],
+            requester_fingerprint: String::new(),
         })),
     };
     ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
@@ -401,7 +636,7 @@ async fn real_ws_server_preserves_encrypted_payloads_during_sync() {
     if let Some(frame::Body::SyncResponse(response)) = sync_frame.body {
         assert_eq!(response.messages.len(), 1);
         assert_eq!(response.messages[0].msg_id, "msg-enc-001");
-        assert_eq!(response.next_batch, 1001);
+        assert_eq!(response.next_batch, stored.received_ts + 1);
         let payload = response.messages[0].payload.as_ref().unwrap();
         match payload {
             Payload::Encrypted(encrypted) => {
@@ -424,6 +659,7 @@ async fn real_ws_server_preserves_encrypted_payloads_during_sync() {
 async fn real_ws_server_forwards_to_recipient_store_from_contacts() {
     let (fixture, url, server_handle) = spawn_real_store_server().await;
     let recipient = "bob-fp";
+    let sender_identity = MasterKeyPair::generate();
     let (forward_addr, received, forward_handle) = spawn_ack_store().await;
 
     fixture
@@ -440,17 +676,27 @@ async fn real_ws_server_forwards_to_recipient_store_from_contacts() {
         })
         .await
         .unwrap();
+    fixture
+        .state
+        .storage
+        .save_contact(&make_signed_contact(&sender_identity, ""))
+        .await
+        .unwrap();
 
     let (mut ws, _) = connect_async(&url).await.unwrap();
+    let signed_message = sign_envelope_for_test(
+        &sender_identity,
+        make_envelope(
+            "forward-msg",
+            &sender_identity.fingerprint(),
+            recipient,
+            "hello forwarded store",
+        ),
+    );
     let frame = Frame {
         seq: 1,
         r#type: FrameType::Message as i32,
-        body: Some(frame::Body::Message(make_envelope(
-            "forward-msg",
-            "alice-fp",
-            recipient,
-            "hello forwarded store",
-        ))),
+        body: Some(frame::Body::Message(signed_message)),
     };
     let encoded = frame.encode_to_vec();
     ws.send(WsMessage::Binary(encoded.clone().into())).await.unwrap();

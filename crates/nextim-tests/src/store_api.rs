@@ -386,3 +386,115 @@ async fn store_api_manages_contacts_and_rooms_via_real_routes() {
 
     handle.abort();
 }
+
+#[tokio::test]
+async fn store_api_registers_and_lists_devices_via_real_routes() {
+    let (url, handle) = start_store_api().await;
+    let client = reqwest::Client::new();
+    let user = "multi-device-user-fp";
+
+    // 初始无设备
+    let empty: Vec<serde_json::Value> = client
+        .get(format!("{url}/devices/{user}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(empty.is_empty());
+
+    // 注册第一台设备
+    let phone: serde_json::Value = client
+        .post(format!("{url}/devices"))
+        .json(&serde_json::json!({
+            "device_id": "phone-1",
+            "user_fingerprint": user,
+            "device_ed25519_key": "AQIatest",
+            "device_curve25519_key": "BAUGtest",
+            "signature": "BwgJtest",
+            "device_name": "Alice Phone"
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(phone["device_id"], "phone-1");
+    assert_eq!(phone["device_name"], "Alice Phone");
+    assert!(phone["created_at"].as_u64().unwrap() > 0);
+
+    // 注册第二台设备
+    let laptop_status = client
+        .post(format!("{url}/devices"))
+        .json(&serde_json::json!({
+            "device_id": "laptop-1",
+            "user_fingerprint": user,
+            "device_ed25519_key": "AQIatest",
+            "device_curve25519_key": "BAUGtest",
+            "signature": "BwgJtest",
+            "device_name": "Alice Laptop"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(laptop_status.status(), 200);
+
+    // 新设备发现同账号已注册设备：列表返回两台
+    let devices: Vec<serde_json::Value> = client
+        .get(format!("{url}/devices/{user}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(devices.len(), 2);
+    assert!(devices.iter().any(|d| d["device_id"] == "phone-1"));
+    assert!(devices.iter().any(|d| d["device_id"] == "laptop-1"));
+
+    // 重复 device_id → 409 Conflict
+    let duplicate = client
+        .post(format!("{url}/devices"))
+        .json(&serde_json::json!({
+            "device_id": "phone-1",
+            "user_fingerprint": user,
+            "device_ed25519_key": "AQIatest",
+            "device_curve25519_key": "BAUGtest",
+            "signature": "BwgJtest"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(duplicate.status(), 409);
+
+    // user_fingerprint 与请求体不一致的情况下，DeviceManager 仍按请求体的 user 注册；
+    // 非法 base64 → 400 Bad Request
+    let bad_key = client
+        .post(format!("{url}/devices"))
+        .json(&serde_json::json!({
+            "device_id": "tablet-1",
+            "user_fingerprint": user,
+            "device_ed25519_key": "not valid base64!!!",
+            "device_curve25519_key": "BAUGtest",
+            "signature": "BwgJtest"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(bad_key.status(), 400);
+
+    // 另一用户的设备互不干扰
+    let other_user_devices: Vec<serde_json::Value> = client
+        .get(format!("{url}/devices/other-user-fp"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(other_user_devices.is_empty());
+
+    handle.abort();
+}
