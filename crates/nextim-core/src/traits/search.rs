@@ -13,8 +13,7 @@ pub struct SearchResult {
 /// 搜索层抽象 — 全文检索
 pub trait SearchIndex: Send + Sync {
     /// 索引一条消息
-    fn index_message(&self, msg: &Message)
-        -> impl std::future::Future<Output = Result<()>> + Send;
+    fn index_message(&self, msg: &Message) -> impl std::future::Future<Output = Result<()>> + Send;
 
     /// 批量索引
     fn index_messages(
@@ -38,10 +37,7 @@ pub trait SearchIndex: Send + Sync {
     ) -> impl std::future::Future<Output = Result<Vec<SearchResult>>> + Send;
 
     /// 删除消息索引
-    fn delete_index(
-        &self,
-        msg_id: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    fn delete_index(&self, msg_id: &str) -> impl std::future::Future<Output = Result<()>> + Send;
 
     /// 重建全部索引
     fn rebuild_index(&self) -> impl std::future::Future<Output = Result<()>> + Send;

@@ -131,21 +131,22 @@ fn parse_mapped_address(data: &[u8]) -> Option<SocketAddr> {
 }
 
 /// 向 STUN 服务器发送 Binding Request，获取外部地址
-pub async fn discover_external_address(
-    stun_server: &str,
-) -> Result<StunResult, StunError> {
+pub async fn discover_external_address(stun_server: &str) -> Result<StunResult, StunError> {
     let socket = UdpSocket::bind("0.0.0.0:0")
         .await
         .map_err(|e| StunError::Network(e.to_string()))?;
 
-    let local_addr = socket.local_addr()
+    let local_addr = socket
+        .local_addr()
         .map_err(|e| StunError::Network(e.to_string()))?;
 
-    let server_addr: SocketAddr = stun_server.parse()
+    let server_addr: SocketAddr = stun_server
+        .parse()
         .map_err(|e: std::net::AddrParseError| StunError::InvalidServer(e.to_string()))?;
 
     let request = build_binding_request();
-    socket.send_to(&request, server_addr)
+    socket
+        .send_to(&request, server_addr)
         .await
         .map_err(|e| StunError::Network(e.to_string()))?;
 
@@ -159,11 +160,10 @@ pub async fn discover_external_address(
     .map_err(|e| StunError::Network(e.to_string()))?;
 
     let (len, _from) = timeout;
-    let external_addr = parse_binding_response(&buf[..len])
-        .ok_or(StunError::ParseError)?;
+    let external_addr = parse_binding_response(&buf[..len]).ok_or(StunError::ParseError)?;
 
-    let behind_nat = external_addr.ip() != local_addr.ip()
-        || external_addr.port() != local_addr.port();
+    let behind_nat =
+        external_addr.ip() != local_addr.ip() || external_addr.port() != local_addr.port();
 
     Ok(StunResult {
         local_addr,
@@ -174,9 +174,9 @@ pub async fn discover_external_address(
 
 /// 常用的公共 STUN 服务器
 pub const STUN_SERVERS: &[&str] = &[
-    "74.125.250.129:19302",   // Google stun1
-    "64.233.163.127:19302",   // Google stun2
-    "159.89.location:3478",   // 备用
+    "74.125.250.129:19302", // Google stun1
+    "64.233.163.127:19302", // Google stun2
+    "159.89.location:3478", // 备用
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -229,13 +229,13 @@ mod tests {
         let mut response = Vec::new();
         // Header
         response.extend_from_slice(&0x0101u16.to_be_bytes()); // Binding Success
-        response.extend_from_slice(&12u16.to_be_bytes());     // Attr length
-        response.extend_from_slice(&magic);                    // Magic Cookie
-        response.extend_from_slice(&[0u8; 12]);               // Transaction ID
+        response.extend_from_slice(&12u16.to_be_bytes()); // Attr length
+        response.extend_from_slice(&magic); // Magic Cookie
+        response.extend_from_slice(&[0u8; 12]); // Transaction ID
 
         // XOR-MAPPED-ADDRESS attribute
         response.extend_from_slice(&0x0020u16.to_be_bytes()); // Type
-        response.extend_from_slice(&8u16.to_be_bytes());      // Length
+        response.extend_from_slice(&8u16.to_be_bytes()); // Length
         response.push(0x00); // Reserved
         response.push(0x01); // Family: IPv4
         response.extend_from_slice(&xor_port.to_be_bytes());

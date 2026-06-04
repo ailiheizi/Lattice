@@ -139,11 +139,7 @@ async fn handle_frame(
                 state.record_relayed_message();
             }
 
-            tracing::info!(
-                "Cached message {} for {}",
-                envelope.msg_id,
-                recipient
-            );
+            tracing::info!("Cached message {} for {}", envelope.msg_id, recipient);
 
             Ok(Some(Frame {
                 seq: frame.seq,
@@ -242,15 +238,13 @@ async fn handle_frame(
             }))
         }
 
-        Some(frame::Body::Ping(ping)) => {
-            Ok(Some(Frame {
-                seq: frame.seq,
-                r#type: FrameType::Pong as i32,
-                body: Some(frame::Body::Pong(Pong {
-                    timestamp: ping.timestamp,
-                })),
-            }))
-        }
+        Some(frame::Body::Ping(ping)) => Ok(Some(Frame {
+            seq: frame.seq,
+            r#type: FrameType::Pong as i32,
+            body: Some(frame::Body::Pong(Pong {
+                timestamp: ping.timestamp,
+            })),
+        })),
 
         _ => Ok(None),
     }
@@ -272,7 +266,7 @@ mod tests {
     use super::*;
     use crate::observability::PeerObservability;
     use nextim_proto::{
-        message::{Envelope, MessageContent, MessageType, PlainPayload, envelope::Payload},
+        message::{envelope::Payload, Envelope, MessageContent, MessageType, PlainPayload},
         transport::{frame, AckStatus, FrameType, SyncRequest},
     };
 
@@ -426,8 +420,14 @@ mod tests {
 
         {
             let mut cache = cache.lock().await;
-            cache.store("alice", test_message_frame(1, "msg-1", "alice").encode_to_vec());
-            cache.store("alice", test_message_frame(2, "msg-2", "alice").encode_to_vec());
+            cache.store(
+                "alice",
+                test_message_frame(1, "msg-1", "alice").encode_to_vec(),
+            );
+            cache.store(
+                "alice",
+                test_message_frame(2, "msg-2", "alice").encode_to_vec(),
+            );
             cache.store("bob", test_message_frame(3, "msg-3", "bob").encode_to_vec());
         }
 

@@ -96,7 +96,11 @@ pub fn add_member(
         check_permission(room, actor_fingerprint, MemberRole::Member)?;
     }
 
-    if room.members.iter().any(|m| m.user_fingerprint == new_member_fingerprint) {
+    if room
+        .members
+        .iter()
+        .any(|m| m.user_fingerprint == new_member_fingerprint)
+    {
         return Err(RoomError::AlreadyMember(new_member_fingerprint.to_string()));
     }
 
@@ -136,10 +140,13 @@ pub fn kick_member(
     // admin 不能踢 admin，只有 owner 可以
     let actor_role = get_member_role(room, actor_fingerprint).unwrap();
     if target_role == MemberRole::Admin && actor_role != MemberRole::Owner {
-        return Err(RoomError::PermissionDenied("only owner can kick admin".into()));
+        return Err(RoomError::PermissionDenied(
+            "only owner can kick admin".into(),
+        ));
     }
 
-    room.members.retain(|m| m.user_fingerprint != target_fingerprint);
+    room.members
+        .retain(|m| m.user_fingerprint != target_fingerprint);
 
     Ok(RoomEvent {
         room_id: room.room_id.clone(),
@@ -154,18 +161,18 @@ pub fn kick_member(
 }
 
 /// 成员主动离开
-pub fn leave_room(
-    room: &mut Room,
-    member_fingerprint: &str,
-) -> Result<RoomEvent, RoomError> {
+pub fn leave_room(room: &mut Room, member_fingerprint: &str) -> Result<RoomEvent, RoomError> {
     let role = get_member_role(room, member_fingerprint)
         .ok_or_else(|| RoomError::MemberNotFound(member_fingerprint.to_string()))?;
 
     if role == MemberRole::Owner {
-        return Err(RoomError::PermissionDenied("owner cannot leave, transfer ownership first".into()));
+        return Err(RoomError::PermissionDenied(
+            "owner cannot leave, transfer ownership first".into(),
+        ));
     }
 
-    room.members.retain(|m| m.user_fingerprint != member_fingerprint);
+    room.members
+        .retain(|m| m.user_fingerprint != member_fingerprint);
 
     Ok(RoomEvent {
         room_id: room.room_id.clone(),
@@ -232,8 +239,8 @@ pub fn compute_event_hash(event: &RoomEvent) -> Vec<u8> {
 }
 
 pub fn history_cutoff(room: &Room, member_fingerprint: &str) -> Option<u64> {
-    let visibility = HistoryVisibility::try_from(room.history_visibility)
-        .unwrap_or(HistoryVisibility::JoinOnly);
+    let visibility =
+        HistoryVisibility::try_from(room.history_visibility).unwrap_or(HistoryVisibility::JoinOnly);
 
     match visibility {
         HistoryVisibility::Full => Some(0),

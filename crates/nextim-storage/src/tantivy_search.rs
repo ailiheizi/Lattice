@@ -3,7 +3,10 @@ use std::sync::Mutex;
 
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{Schema, STORED, STRING, Field, NumericOptions, OwnedValue, TextFieldIndexing, TextOptions, IndexRecordOption};
+use tantivy::schema::{
+    Field, IndexRecordOption, NumericOptions, OwnedValue, Schema, TextFieldIndexing, TextOptions,
+    STORED, STRING,
+};
 use tantivy::{doc, Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument};
 
 use nextim_core::error::{NextImError, Result};
@@ -29,8 +32,7 @@ impl TantivySearch {
     /// 创建基于目录的索引
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let schema = Self::build_schema();
-        std::fs::create_dir_all(path.as_ref())
-            .map_err(|e| NextImError::Search(e.to_string()))?;
+        std::fs::create_dir_all(path.as_ref()).map_err(|e| NextImError::Search(e.to_string()))?;
         let dir = tantivy::directory::MmapDirectory::open(path)
             .map_err(|e| NextImError::Search(e.to_string()))?;
         let index = Index::open_or_create(dir, schema.clone())
@@ -63,7 +65,9 @@ impl TantivySearch {
     }
 
     fn from_index(index: Index, schema: &Schema) -> Result<Self> {
-        index.tokenizers().register(CJK_TOKENIZER_NAME, CjkTokenizer);
+        index
+            .tokenizers()
+            .register(CJK_TOKENIZER_NAME, CjkTokenizer);
 
         let writer = index
             .writer(50_000_000) // 50MB heap
@@ -91,31 +95,37 @@ impl TantivySearch {
     }
 
     fn commit(&self) -> Result<()> {
-        let mut writer = self.writer.lock().map_err(|e| NextImError::Search(e.to_string()))?;
-        writer.commit().map_err(|e| NextImError::Search(e.to_string()))?;
+        let mut writer = self
+            .writer
+            .lock()
+            .map_err(|e| NextImError::Search(e.to_string()))?;
+        writer
+            .commit()
+            .map_err(|e| NextImError::Search(e.to_string()))?;
         Ok(())
     }
 }
 
 impl SearchIndex for TantivySearch {
     async fn index_message(&self, msg: &Message) -> Result<()> {
-        let text = msg
-            .content
-            .as_ref()
-            .map(|c| c.text.as_str())
-            .unwrap_or("");
+        let text = msg.content.as_ref().map(|c| c.text.as_str()).unwrap_or("");
 
         if text.is_empty() {
             return Ok(());
         }
 
-        let writer = self.writer.lock().map_err(|e| NextImError::Search(e.to_string()))?;
-        writer.add_document(doc!(
-            self.f_msg_id => msg.msg_id.as_str(),
-            self.f_room_id => msg.room_id.as_str(),
-            self.f_text => text,
-            self.f_timestamp => msg.timestamp,
-        )).map_err(|e| NextImError::Search(e.to_string()))?;
+        let writer = self
+            .writer
+            .lock()
+            .map_err(|e| NextImError::Search(e.to_string()))?;
+        writer
+            .add_document(doc!(
+                self.f_msg_id => msg.msg_id.as_str(),
+                self.f_room_id => msg.room_id.as_str(),
+                self.f_text => text,
+                self.f_timestamp => msg.timestamp,
+            ))
+            .map_err(|e| NextImError::Search(e.to_string()))?;
         drop(writer);
 
         self.commit()?;
@@ -123,22 +133,23 @@ impl SearchIndex for TantivySearch {
     }
 
     async fn index_messages(&self, msgs: &[Message]) -> Result<()> {
-        let writer = self.writer.lock().map_err(|e| NextImError::Search(e.to_string()))?;
+        let writer = self
+            .writer
+            .lock()
+            .map_err(|e| NextImError::Search(e.to_string()))?;
         for msg in msgs {
-            let text = msg
-                .content
-                .as_ref()
-                .map(|c| c.text.as_str())
-                .unwrap_or("");
+            let text = msg.content.as_ref().map(|c| c.text.as_str()).unwrap_or("");
             if text.is_empty() {
                 continue;
             }
-            writer.add_document(doc!(
-                self.f_msg_id => msg.msg_id.as_str(),
-                self.f_room_id => msg.room_id.as_str(),
-                self.f_text => text,
-                self.f_timestamp => msg.timestamp,
-            )).map_err(|e| NextImError::Search(e.to_string()))?;
+            writer
+                .add_document(doc!(
+                    self.f_msg_id => msg.msg_id.as_str(),
+                    self.f_room_id => msg.room_id.as_str(),
+                    self.f_text => text,
+                    self.f_timestamp => msg.timestamp,
+                ))
+                .map_err(|e| NextImError::Search(e.to_string()))?;
         }
         drop(writer);
 
@@ -147,7 +158,9 @@ impl SearchIndex for TantivySearch {
     }
 
     async fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchResult>> {
-        self.reader.reload().map_err(|e| NextImError::Search(e.to_string()))?;
+        self.reader
+            .reload()
+            .map_err(|e| NextImError::Search(e.to_string()))?;
         let searcher = self.reader.searcher();
         let query_parser = QueryParser::for_index(&self.index, vec![self.f_text]);
         let parsed = query_parser
@@ -188,10 +201,11 @@ impl SearchIndex for TantivySearch {
     ) -> Result<Vec<SearchResult>> {
         // 组合查询: room_id:xxx AND text:query
         let combined = format!("room_id:\"{room_id}\" AND ({query})");
-        self.reader.reload().map_err(|e| NextImError::Search(e.to_string()))?;
+        self.reader
+            .reload()
+            .map_err(|e| NextImError::Search(e.to_string()))?;
         let searcher = self.reader.searcher();
-        let query_parser =
-            QueryParser::for_index(&self.index, vec![self.f_text, self.f_room_id]);
+        let query_parser = QueryParser::for_index(&self.index, vec![self.f_text, self.f_room_id]);
         let parsed = query_parser
             .parse_query(&combined)
             .map_err(|e| NextImError::Search(e.to_string()))?;
@@ -224,7 +238,10 @@ impl SearchIndex for TantivySearch {
 
     async fn delete_index(&self, msg_id: &str) -> Result<()> {
         let term = tantivy::Term::from_field_text(self.f_msg_id, msg_id);
-        let writer = self.writer.lock().map_err(|e| NextImError::Search(e.to_string()))?;
+        let writer = self
+            .writer
+            .lock()
+            .map_err(|e| NextImError::Search(e.to_string()))?;
         writer.delete_term(term);
         drop(writer);
         self.commit()?;
@@ -232,8 +249,13 @@ impl SearchIndex for TantivySearch {
     }
 
     async fn rebuild_index(&self) -> Result<()> {
-        let writer = self.writer.lock().map_err(|e| NextImError::Search(e.to_string()))?;
-        writer.delete_all_documents().map_err(|e| NextImError::Search(e.to_string()))?;
+        let writer = self
+            .writer
+            .lock()
+            .map_err(|e| NextImError::Search(e.to_string()))?;
+        writer
+            .delete_all_documents()
+            .map_err(|e| NextImError::Search(e.to_string()))?;
         drop(writer);
         self.commit()?;
         Ok(())
@@ -293,9 +315,18 @@ mod tests {
     async fn test_index_and_search_english() {
         let search = TantivySearch::in_memory().unwrap();
 
-        search.index_message(&make_msg("m1", "r1", 1000, "hello world")).await.unwrap();
-        search.index_message(&make_msg("m2", "r1", 1001, "goodbye world")).await.unwrap();
-        search.index_message(&make_msg("m3", "r1", 1002, "hello rust")).await.unwrap();
+        search
+            .index_message(&make_msg("m1", "r1", 1000, "hello world"))
+            .await
+            .unwrap();
+        search
+            .index_message(&make_msg("m2", "r1", 1001, "goodbye world"))
+            .await
+            .unwrap();
+        search
+            .index_message(&make_msg("m3", "r1", 1002, "hello rust"))
+            .await
+            .unwrap();
 
         let results = search.search("hello", 10).await.unwrap();
         assert_eq!(results.len(), 2);
@@ -305,8 +336,14 @@ mod tests {
     async fn test_search_in_room() {
         let search = TantivySearch::in_memory().unwrap();
 
-        search.index_message(&make_msg("m1", "room-a", 1000, "hello world")).await.unwrap();
-        search.index_message(&make_msg("m2", "room-b", 1001, "hello rust")).await.unwrap();
+        search
+            .index_message(&make_msg("m1", "room-a", 1000, "hello world"))
+            .await
+            .unwrap();
+        search
+            .index_message(&make_msg("m2", "room-b", 1001, "hello rust"))
+            .await
+            .unwrap();
 
         let results = search.search_in_room("room-a", "hello", 10).await.unwrap();
         assert_eq!(results.len(), 1);
@@ -317,7 +354,10 @@ mod tests {
     async fn test_delete_index() {
         let search = TantivySearch::in_memory().unwrap();
 
-        search.index_message(&make_msg("m1", "r1", 1000, "hello world")).await.unwrap();
+        search
+            .index_message(&make_msg("m1", "r1", 1000, "hello world"))
+            .await
+            .unwrap();
         let results = search.search("hello", 10).await.unwrap();
         assert_eq!(results.len(), 1);
 
@@ -346,9 +386,18 @@ mod tests {
     async fn test_chinese_search() {
         let search = TantivySearch::in_memory().unwrap();
 
-        search.index_message(&make_msg("m1", "r1", 1000, "你好世界")).await.unwrap();
-        search.index_message(&make_msg("m2", "r1", 1001, "今天天气很好")).await.unwrap();
-        search.index_message(&make_msg("m3", "r1", 1002, "hello 你好")).await.unwrap();
+        search
+            .index_message(&make_msg("m1", "r1", 1000, "你好世界"))
+            .await
+            .unwrap();
+        search
+            .index_message(&make_msg("m2", "r1", 1001, "今天天气很好"))
+            .await
+            .unwrap();
+        search
+            .index_message(&make_msg("m3", "r1", 1002, "hello 你好"))
+            .await
+            .unwrap();
 
         // 搜索 "你" 应该匹配 m1 和 m3
         let results = search.search("你", 10).await.unwrap();
@@ -364,9 +413,18 @@ mod tests {
     async fn test_mixed_language_search() {
         let search = TantivySearch::in_memory().unwrap();
 
-        search.index_message(&make_msg("m1", "r1", 1000, "rust 编程语言")).await.unwrap();
-        search.index_message(&make_msg("m2", "r1", 1001, "go 编程")).await.unwrap();
-        search.index_message(&make_msg("m3", "r1", 1002, "rust is great")).await.unwrap();
+        search
+            .index_message(&make_msg("m1", "r1", 1000, "rust 编程语言"))
+            .await
+            .unwrap();
+        search
+            .index_message(&make_msg("m2", "r1", 1001, "go 编程"))
+            .await
+            .unwrap();
+        search
+            .index_message(&make_msg("m3", "r1", 1002, "rust is great"))
+            .await
+            .unwrap();
 
         // 搜索英文
         let results = search.search("rust", 10).await.unwrap();

@@ -1,12 +1,11 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_tungstenite::{
-    connect_async, MaybeTlsStream, WebSocketStream,
-    tungstenite::Message as WsMessage,
+    connect_async, tungstenite::Message as WsMessage, MaybeTlsStream, WebSocketStream,
 };
 
 use nextim_core::error::{NextImError, Result};
@@ -55,7 +54,9 @@ impl Transport for WsTransport {
     }
 
     async fn send(&self, data: &[u8]) -> Result<()> {
-        let stream = self.stream.as_ref()
+        let stream = self
+            .stream
+            .as_ref()
             .ok_or_else(|| NextImError::Transport("not connected".into()))?;
 
         let mut guard = stream.lock().await;
@@ -67,7 +68,9 @@ impl Transport for WsTransport {
     }
 
     async fn recv(&mut self) -> Result<Vec<u8>> {
-        let stream = self.stream.as_ref()
+        let stream = self
+            .stream
+            .as_ref()
             .ok_or_else(|| NextImError::Transport("not connected".into()))?;
 
         let mut guard = stream.lock().await;
@@ -112,9 +115,9 @@ impl Transport for WsTransport {
 
 // === 服务端监听 ===
 
+use nextim_core::traits::transport::TransportListener;
 use tokio::net::TcpListener;
 use tokio_tungstenite::accept_async;
-use nextim_core::traits::transport::TransportListener;
 
 /// WebSocket 服务端监听器
 pub struct WsListener {
@@ -132,7 +135,9 @@ impl TransportListener for WsListener {
     }
 
     async fn accept(&mut self) -> Result<Self::Conn> {
-        let (tcp_stream, _addr) = self.listener.accept()
+        let (tcp_stream, _addr) = self
+            .listener
+            .accept()
             .await
             .map_err(|e| NextImError::Transport(format!("accept failed: {e}")))?;
 
@@ -212,8 +217,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_protobuf_frame_roundtrip() {
-        use prost::Message;
         use nextim_proto::transport::{Frame, FrameType, Ping};
+        use prost::Message;
 
         let mut server = WsListener::bind("127.0.0.1:0").await.unwrap();
         let addr = server.listener.local_addr().unwrap();

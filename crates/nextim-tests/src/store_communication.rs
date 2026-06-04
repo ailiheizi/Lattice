@@ -12,20 +12,17 @@ use nextim_proto::{
     group::{Room, RoomEvent, RoomEventType},
     identity::{Contact, Identity},
     message::{
-        EncryptionType, EncryptedPayload, Envelope, MessageContent, MessageType, PlainPayload,
-        envelope::Payload,
+        envelope::Payload, EncryptedPayload, EncryptionType, Envelope, MessageContent, MessageType,
+        PlainPayload,
     },
-    transport::{AckStatus, Frame, FrameType, MessageAck, SyncRequest, frame},
+    transport::{frame, AckStatus, Frame, FrameType, MessageAck, SyncRequest},
 };
 use nextim_storage::{sqlite::SqliteStorage, tantivy_search::TantivySearch};
 use prost::Message as ProstMessage;
 use tempfile::TempDir;
 use tokio::net::TcpListener;
-use tokio::sync::{Mutex, RwLock, oneshot};
-use tokio_tungstenite::{
-    accept_async, connect_async,
-    tungstenite::Message as WsMessage,
-};
+use tokio::sync::{oneshot, Mutex, RwLock};
+use tokio_tungstenite::{accept_async, connect_async, tungstenite::Message as WsMessage};
 
 use nextim_store::{server, AppState, OnlineConnections, OutboundPool};
 
@@ -165,7 +162,11 @@ async fn spawn_real_store_server() -> (StoreFixture, String, tokio::task::JoinHa
     (fixture, url, handle)
 }
 
-async fn spawn_ack_store() -> (String, oneshot::Receiver<Vec<u8>>, tokio::task::JoinHandle<()>) {
+async fn spawn_ack_store() -> (
+    String,
+    oneshot::Receiver<Vec<u8>>,
+    tokio::task::JoinHandle<()>,
+) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = format!("ws://{}", listener.local_addr().unwrap());
     let (tx, rx) = oneshot::channel();
@@ -184,7 +185,9 @@ async fn spawn_ack_store() -> (String, oneshot::Receiver<Vec<u8>>, tokio::task::
                     status: AckStatus::Received as i32,
                 })),
             };
-            ws.send(WsMessage::Binary(ack.encode_to_vec().into())).await.unwrap();
+            ws.send(WsMessage::Binary(ack.encode_to_vec()))
+                .await
+                .unwrap();
         }
     });
 
@@ -220,14 +223,21 @@ async fn real_ws_server_stores_and_syncs_messages() {
 
     let env = sign_envelope_for_test(
         &sender_identity,
-        make_envelope("msg-001", &sender_identity.fingerprint(), room, "hello store sync"),
+        make_envelope(
+            "msg-001",
+            &sender_identity.fingerprint(),
+            room,
+            "hello store sync",
+        ),
     );
     let frame = Frame {
         seq: 1,
         r#type: FrameType::Message as i32,
         body: Some(frame::Body::Message(env)),
     };
-    ws.send(WsMessage::Binary(frame.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(frame.encode_to_vec()))
+        .await
+        .unwrap();
 
     let ack = ws.next().await.unwrap().unwrap();
     let ack_frame = match ack {
@@ -272,7 +282,9 @@ async fn real_ws_server_stores_and_syncs_messages() {
             requester_fingerprint: String::new(),
         })),
     };
-    ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(sync.encode_to_vec()))
+        .await
+        .unwrap();
 
     let sync_resp = ws.next().await.unwrap().unwrap();
     let sync_frame = match sync_resp {
@@ -282,7 +294,10 @@ async fn real_ws_server_stores_and_syncs_messages() {
 
     if let Some(frame::Body::SyncResponse(response)) = sync_frame.body {
         assert_eq!(response.messages.len(), 1);
-        assert!(response.events.is_empty(), "room events are not currently included in store sync responses");
+        assert!(
+            response.events.is_empty(),
+            "room events are not currently included in store sync responses"
+        );
         assert_eq!(response.messages[0].msg_id, "msg-001");
         assert_eq!(response.next_batch, stored.received_ts + 1);
         let payload = response.messages[0].payload.as_ref().unwrap();
@@ -329,7 +344,12 @@ async fn real_ws_server_rejects_tampered_signed_messages() {
 
     let mut env = sign_envelope_for_test(
         &sender_identity,
-        make_envelope("msg-tampered", &sender_identity.fingerprint(), room, "hello tamper"),
+        make_envelope(
+            "msg-tampered",
+            &sender_identity.fingerprint(),
+            room,
+            "hello tamper",
+        ),
     );
     if let Some(Payload::Plain(plain)) = env.payload.as_mut() {
         if let Some(content) = plain.content.as_mut() {
@@ -342,7 +362,9 @@ async fn real_ws_server_rejects_tampered_signed_messages() {
         r#type: FrameType::Message as i32,
         body: Some(frame::Body::Message(env)),
     };
-    ws.send(WsMessage::Binary(frame.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(frame.encode_to_vec()))
+        .await
+        .unwrap();
 
     let ack = ws.next().await.unwrap().unwrap();
     let ack_frame = match ack {
@@ -410,10 +432,18 @@ async fn real_ws_server_holds_out_of_order_messages_until_parent_arrives() {
         r#type: FrameType::Message as i32,
         body: Some(frame::Body::Message(child.clone())),
     };
-    ws.send(WsMessage::Binary(child_frame.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(child_frame.encode_to_vec()))
+        .await
+        .unwrap();
     let _ = ws.next().await.unwrap().unwrap();
 
-    assert!(fixture.state.storage.get_message("msg-child").await.unwrap().is_none());
+    assert!(fixture
+        .state
+        .storage
+        .get_message("msg-child")
+        .await
+        .unwrap()
+        .is_none());
     assert!(fixture
         .state
         .storage
@@ -431,7 +461,9 @@ async fn real_ws_server_holds_out_of_order_messages_until_parent_arrives() {
             requester_fingerprint: String::new(),
         })),
     };
-    ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(sync.encode_to_vec()))
+        .await
+        .unwrap();
     let pending_sync = ws.next().await.unwrap().unwrap();
     let pending_sync_frame = match pending_sync {
         WsMessage::Binary(data) => Frame::decode(data.as_ref()).unwrap(),
@@ -448,7 +480,9 @@ async fn real_ws_server_holds_out_of_order_messages_until_parent_arrives() {
         r#type: FrameType::Message as i32,
         body: Some(frame::Body::Message(parent)),
     };
-    ws.send(WsMessage::Binary(parent_frame.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(parent_frame.encode_to_vec()))
+        .await
+        .unwrap();
     let _ = ws.next().await.unwrap().unwrap();
 
     assert!(fixture
@@ -459,14 +493,20 @@ async fn real_ws_server_holds_out_of_order_messages_until_parent_arrives() {
         .unwrap()
         .is_none());
 
-    ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(sync.encode_to_vec()))
+        .await
+        .unwrap();
     let promoted_sync = ws.next().await.unwrap().unwrap();
     let promoted_sync_frame = match promoted_sync {
         WsMessage::Binary(data) => Frame::decode(data.as_ref()).unwrap(),
         other => panic!("expected binary sync response, got {other:?}"),
     };
     if let Some(frame::Body::SyncResponse(response)) = promoted_sync_frame.body {
-        let ids: Vec<_> = response.messages.into_iter().map(|msg| msg.msg_id).collect();
+        let ids: Vec<_> = response
+            .messages
+            .into_iter()
+            .map(|msg| msg.msg_id)
+            .collect();
         assert_eq!(ids, vec!["msg-parent".to_string(), "msg-child".to_string()]);
     } else {
         panic!("expected sync response body");
@@ -510,13 +550,12 @@ async fn real_ws_server_stores_and_syncs_room_events() {
         seq: 3,
         r#type: FrameType::RoomEvent as i32,
         body: Some(frame::Body::RoomEvent(make_room_event(
-            &actor,
-            room,
-            "alice-fp",
-            2000,
+            &actor, room, "alice-fp", 2000,
         ))),
     };
-    ws.send(WsMessage::Binary(frame.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(frame.encode_to_vec()))
+        .await
+        .unwrap();
 
     let ack = ws.next().await.unwrap().unwrap();
     let ack_frame = match ack {
@@ -551,7 +590,9 @@ async fn real_ws_server_stores_and_syncs_room_events() {
             requester_fingerprint: String::new(),
         })),
     };
-    ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(sync.encode_to_vec()))
+        .await
+        .unwrap();
 
     let sync_resp = ws.next().await.unwrap().unwrap();
     let sync_frame = match sync_resp {
@@ -571,7 +612,10 @@ async fn real_ws_server_stores_and_syncs_room_events() {
         // P4：房间事件已纳入统一 DAG 时间线，并填充了 msg_hash。
         assert_eq!(response.timeline.len(), 1);
         let item = &response.timeline[0];
-        assert!(!item.msg_hash.is_empty(), "timeline item should carry msg_hash");
+        assert!(
+            !item.msg_hash.is_empty(),
+            "timeline item should carry msg_hash"
+        );
         match &item.item {
             Some(nextim_proto::transport::sync_timeline_item::Item::RoomEvent(ev)) => {
                 assert_eq!(ev.actor_fingerprint, actor_fp);
@@ -623,7 +667,9 @@ async fn real_ws_server_preserves_encrypted_payloads_during_sync() {
         r#type: FrameType::Message as i32,
         body: Some(frame::Body::Message(env)),
     };
-    ws.send(WsMessage::Binary(frame.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(frame.encode_to_vec()))
+        .await
+        .unwrap();
 
     let ack = ws.next().await.unwrap().unwrap();
     let ack_frame = match ack {
@@ -643,7 +689,10 @@ async fn real_ws_server_preserves_encrypted_payloads_during_sync() {
     assert!(stored.encrypted);
     assert!(stored.content.is_none());
     assert!(stored.verified);
-    let stored_payload = stored.encrypted_payload.as_ref().expect("encrypted payload stored");
+    let stored_payload = stored
+        .encrypted_payload
+        .as_ref()
+        .expect("encrypted payload stored");
     assert_eq!(stored_payload.ciphertext, b"encrypted-store-sync".to_vec());
     assert_eq!(stored_payload.session_id, "olm-session-1");
     assert_eq!(stored_payload.message_index, 42);
@@ -658,7 +707,9 @@ async fn real_ws_server_preserves_encrypted_payloads_during_sync() {
             requester_fingerprint: String::new(),
         })),
     };
-    ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(sync.encode_to_vec()))
+        .await
+        .unwrap();
 
     let sync_resp = ws.next().await.unwrap().unwrap();
     let sync_frame = match sync_resp {
@@ -732,7 +783,7 @@ async fn real_ws_server_forwards_to_recipient_store_from_contacts() {
         body: Some(frame::Body::Message(signed_message)),
     };
     let encoded = frame.encode_to_vec();
-    ws.send(WsMessage::Binary(encoded.clone().into())).await.unwrap();
+    ws.send(WsMessage::Binary(encoded.clone())).await.unwrap();
 
     let ack = ws.next().await.unwrap().unwrap();
     let ack_frame = match ack {
@@ -797,7 +848,12 @@ async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
         prev_hashes: Vec::new(),
         msg_hash: b"unified-msg-hash-1".to_vec(),
     };
-    fixture.state.storage.save_message(&stored_msg).await.unwrap();
+    fixture
+        .state
+        .storage
+        .save_message(&stored_msg)
+        .await
+        .unwrap();
 
     let (mut ws, _) = connect_async(&url).await.unwrap();
 
@@ -809,7 +865,9 @@ async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
             &actor, room, "bob-fp", 3000,
         ))),
     };
-    ws.send(WsMessage::Binary(event_frame.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(event_frame.encode_to_vec()))
+        .await
+        .unwrap();
     let _ = ws.next().await.unwrap().unwrap(); // ack
 
     let sync = Frame {
@@ -821,7 +879,9 @@ async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
             requester_fingerprint: String::new(),
         })),
     };
-    ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
+    ws.send(WsMessage::Binary(sync.encode_to_vec()))
+        .await
+        .unwrap();
 
     let sync_resp = ws.next().await.unwrap().unwrap();
     let sync_frame = match sync_resp {
@@ -831,7 +891,11 @@ async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
 
     if let Some(frame::Body::SyncResponse(response)) = sync_frame.body {
         // 统一时间线应同时包含消息与房间事件两类。
-        assert_eq!(response.timeline.len(), 2, "timeline should merge message + room event");
+        assert_eq!(
+            response.timeline.len(),
+            2,
+            "timeline should merge message + room event"
+        );
         let mut has_message = false;
         let mut has_event = false;
         for item in &response.timeline {

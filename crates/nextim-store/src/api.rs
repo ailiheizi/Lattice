@@ -11,7 +11,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 
-use nextim_core::device::{DeviceManager, DeviceError};
+use nextim_core::device::{DeviceError, DeviceManager};
 use nextim_core::room;
 use nextim_core::traits::search::SearchIndex;
 use nextim_core::traits::storage::{Pagination, Storage, TimeRange};
@@ -795,11 +795,13 @@ async fn register_device(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let mut manager = DeviceManager::from_devices(&req.user_fingerprint, existing);
-    manager.register_device(device.clone()).map_err(|e| match e {
-        DeviceError::WrongUser => (StatusCode::BAD_REQUEST, e.to_string()),
-        DeviceError::AlreadyRegistered(_) => (StatusCode::CONFLICT, e.to_string()),
-        DeviceError::NotFound(_) => (StatusCode::NOT_FOUND, e.to_string()),
-    })?;
+    manager
+        .register_device(device.clone())
+        .map_err(|e| match e {
+            DeviceError::WrongUser => (StatusCode::BAD_REQUEST, e.to_string()),
+            DeviceError::AlreadyRegistered(_) => (StatusCode::CONFLICT, e.to_string()),
+            DeviceError::NotFound(_) => (StatusCode::NOT_FOUND, e.to_string()),
+        })?;
 
     state
         .storage

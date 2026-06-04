@@ -8,15 +8,21 @@ pub struct TrustPolicy {
 
 impl TrustPolicy {
     pub fn strict() -> Self {
-        Self { default_level: TrustLevel::Verified }
+        Self {
+            default_level: TrustLevel::Verified,
+        }
     }
 
     pub fn relaxed() -> Self {
-        Self { default_level: TrustLevel::Tofu }
+        Self {
+            default_level: TrustLevel::Tofu,
+        }
     }
 
     pub fn open() -> Self {
-        Self { default_level: TrustLevel::Public }
+        Self {
+            default_level: TrustLevel::Public,
+        }
     }
 
     /// 判断是否接受来自指定信任等级的消息

@@ -16,7 +16,9 @@ pub struct OrderedNode {
 }
 
 pub fn is_outlier(node: &DagNode, known_hashes: &BTreeSet<Vec<u8>>) -> bool {
-    node.prev_hashes.iter().any(|parent| !known_hashes.contains(parent))
+    node.prev_hashes
+        .iter()
+        .any(|parent| !known_hashes.contains(parent))
 }
 
 pub fn missing_parents(node: &DagNode, known_hashes: &BTreeSet<Vec<u8>>) -> Vec<Vec<u8>> {
@@ -179,7 +181,10 @@ mod tests {
         let merged = node(b"D", &[b"B", b"C"], 40);
 
         let branched = vec![a.clone(), b.clone(), c.clone()];
-        assert_eq!(forward_extremities(&branched), vec![b"B".to_vec(), b"C".to_vec()]);
+        assert_eq!(
+            forward_extremities(&branched),
+            vec![b"B".to_vec(), b"C".to_vec()]
+        );
 
         let nodes = vec![a, c, b, merged];
         let ordered = deterministic_order(&nodes);
@@ -224,10 +229,7 @@ mod tests {
     #[test]
     fn missing_parents_for_batch_is_deduplicated_and_sorted() {
         let known = BTreeSet::from([b"A".to_vec()]);
-        let nodes = vec![
-            node(b"B", &[b"A", b"X"], 20),
-            node(b"C", &[b"Y", b"X"], 21),
-        ];
+        let nodes = vec![node(b"B", &[b"A", b"X"], 20), node(b"C", &[b"Y", b"X"], 21)];
 
         assert_eq!(
             missing_parents_for_nodes(&nodes, &known),

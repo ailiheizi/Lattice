@@ -1,9 +1,9 @@
-use ed25519_dalek::{SigningKey, VerifyingKey, Signer, Verifier, Signature};
-use sha2::{Sha256, Digest};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
-use x25519_dalek::{StaticSecret, PublicKey as X25519PublicKey};
+use sha2::{Digest, Sha256};
+use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 
-use nextim_proto::identity::{Identity, DeviceInfo, IdentityCard};
+use nextim_proto::identity::{DeviceInfo, Identity, IdentityCard};
 
 /// 用户主密钥对
 pub struct MasterKeyPair {
@@ -18,14 +18,20 @@ impl MasterKeyPair {
     pub fn generate() -> Self {
         let signing_key = SigningKey::generate(&mut OsRng);
         let encryption_key = StaticSecret::random_from_rng(OsRng);
-        Self { signing_key, encryption_key }
+        Self {
+            signing_key,
+            encryption_key,
+        }
     }
 
     /// 从已有私钥恢复
     pub fn from_bytes(signing_bytes: &[u8; 32], encryption_bytes: &[u8; 32]) -> Self {
         let signing_key = SigningKey::from_bytes(signing_bytes);
         let encryption_key = StaticSecret::from(*encryption_bytes);
-        Self { signing_key, encryption_key }
+        Self {
+            signing_key,
+            encryption_key,
+        }
     }
 
     /// 获取 Ed25519 签名公钥
@@ -163,14 +169,18 @@ pub fn verify_device_signature(
     device: &DeviceInfo,
 ) -> Result<bool, ed25519_dalek::SignatureError> {
     let verifying_key = VerifyingKey::from_bytes(
-        master_public_key.try_into().map_err(|_| ed25519_dalek::SignatureError::new())?,
+        master_public_key
+            .try_into()
+            .map_err(|_| ed25519_dalek::SignatureError::new())?,
     )?;
 
     let mut sign_data = Vec::new();
     sign_data.extend_from_slice(&device.device_ed25519_key);
     sign_data.extend_from_slice(&device.device_curve25519_key);
 
-    let sig_bytes: [u8; 64] = device.signature.as_slice()
+    let sig_bytes: [u8; 64] = device
+        .signature
+        .as_slice()
         .try_into()
         .map_err(|_| ed25519_dalek::SignatureError::new())?;
     let signature = Signature::from_bytes(&sig_bytes);
@@ -230,10 +240,7 @@ mod tests {
             &device.encryption_public_key(),
         );
 
-        let result = verify_device_signature(
-            master.verifying_key().as_bytes(),
-            &device_info,
-        );
+        let result = verify_device_signature(master.verifying_key().as_bytes(), &device_info);
         assert!(result.is_ok());
         assert!(result.unwrap());
     }

@@ -2,9 +2,9 @@ uniffi::include_scaffolding!("nextim");
 
 use std::path::PathBuf;
 
-use nextim_crypto::identity::MasterKeyPair;
 use nextim_core::traits::search::SearchIndex;
 use nextim_core::traits::storage::{Pagination, Storage, TimeRange};
+use nextim_crypto::identity::MasterKeyPair;
 use nextim_proto::message::{Message, MessageContent, MessageType};
 use nextim_storage::sqlite::SqliteStorage;
 use nextim_storage::tantivy_search::TantivySearch;
@@ -71,16 +71,15 @@ pub struct NextImClient {
 impl NextImClient {
     pub fn new(data_dir: String) -> Result<Self, NextImFfiError> {
         let path = PathBuf::from(&data_dir);
-        std::fs::create_dir_all(&path)
-            .map_err(|e| NextImFfiError::StorageError(e.to_string()))?;
+        std::fs::create_dir_all(&path).map_err(|e| NextImFfiError::StorageError(e.to_string()))?;
 
         let storage = SqliteStorage::open(path.join("store.db"))
             .map_err(|e| NextImFfiError::StorageError(e.to_string()))?;
         let search = TantivySearch::open(path.join("search_index"))
             .map_err(|e| NextImFfiError::StorageError(e.to_string()))?;
 
-        let rt = tokio::runtime::Runtime::new()
-            .map_err(|e| NextImFfiError::Other(e.to_string()))?;
+        let rt =
+            tokio::runtime::Runtime::new().map_err(|e| NextImFfiError::Other(e.to_string()))?;
 
         Ok(Self {
             keypair: MasterKeyPair::generate(),
@@ -125,13 +124,15 @@ impl NextImClient {
     ) -> Result<bool, NextImFfiError> {
         use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
-        let key_bytes: [u8; 32] = public_key.as_slice()
+        let key_bytes: [u8; 32] = public_key
+            .as_slice()
             .try_into()
             .map_err(|_| NextImFfiError::CryptoError("invalid key length".into()))?;
         let verifying_key = VerifyingKey::from_bytes(&key_bytes)
             .map_err(|e| NextImFfiError::CryptoError(e.to_string()))?;
 
-        let sig_bytes: [u8; 64] = signature.as_slice()
+        let sig_bytes: [u8; 64] = signature
+            .as_slice()
             .try_into()
             .map_err(|_| NextImFfiError::CryptoError("invalid signature length".into()))?;
         let sig = Signature::from_bytes(&sig_bytes);
@@ -142,11 +143,7 @@ impl NextImClient {
         }
     }
 
-    pub fn send_message(
-        &self,
-        room_id: String,
-        text: String,
-    ) -> Result<String, NextImFfiError> {
+    pub fn send_message(&self, room_id: String, text: String) -> Result<String, NextImFfiError> {
         let msg_id = uuid::Uuid::new_v4().to_string();
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -172,7 +169,9 @@ impl NextImClient {
         };
 
         self.rt.block_on(async {
-            self.storage.save_message(&msg).await
+            self.storage
+                .save_message(&msg)
+                .await
                 .map_err(|e| NextImFfiError::StorageError(e.to_string()))?;
             let _ = self.search.index_message(&msg).await;
             Ok(msg_id)
@@ -187,20 +186,29 @@ impl NextImClient {
         limit: u32,
     ) -> Result<Vec<FfiMessage>, NextImFfiError> {
         self.rt.block_on(async {
-            let range = TimeRange { start: since, end: until };
+            let range = TimeRange {
+                start: since,
+                end: until,
+            };
             let page = Pagination { offset: 0, limit };
-            let msgs = self.storage.get_messages(&room_id, &range, &page).await
+            let msgs = self
+                .storage
+                .get_messages(&room_id, &range, &page)
+                .await
                 .map_err(|e| NextImFfiError::StorageError(e.to_string()))?;
 
-            Ok(msgs.into_iter().map(|m| FfiMessage {
-                msg_id: m.msg_id,
-                room_id: m.room_id,
-                sender_fingerprint: m.sender_fingerprint,
-                timestamp: m.timestamp,
-                text: m.content.map(|c| c.text).unwrap_or_default(),
-                encrypted: m.encrypted,
-                verified: m.verified,
-            }).collect())
+            Ok(msgs
+                .into_iter()
+                .map(|m| FfiMessage {
+                    msg_id: m.msg_id,
+                    room_id: m.room_id,
+                    sender_fingerprint: m.sender_fingerprint,
+                    timestamp: m.timestamp,
+                    text: m.content.map(|c| c.text).unwrap_or_default(),
+                    encrypted: m.encrypted,
+                    verified: m.verified,
+                })
+                .collect())
         })
     }
 
@@ -210,16 +218,22 @@ impl NextImClient {
         limit: u32,
     ) -> Result<Vec<FfiSearchResult>, NextImFfiError> {
         self.rt.block_on(async {
-            let results = self.search.search(&query, limit as usize).await
+            let results = self
+                .search
+                .search(&query, limit as usize)
+                .await
                 .map_err(|e| NextImFfiError::StorageError(e.to_string()))?;
 
-            Ok(results.into_iter().map(|r| FfiSearchResult {
-                msg_id: r.msg_id,
-                room_id: r.room_id,
-                snippet: r.snippet,
-                score: r.score,
-                timestamp: r.timestamp,
-            }).collect())
+            Ok(results
+                .into_iter()
+                .map(|r| FfiSearchResult {
+                    msg_id: r.msg_id,
+                    room_id: r.room_id,
+                    snippet: r.snippet,
+                    score: r.score,
+                    timestamp: r.timestamp,
+                })
+                .collect())
         })
     }
 }
@@ -237,7 +251,9 @@ mod tests {
     #[test]
     fn test_create_identity() {
         let (client, _dir) = make_client();
-        let card = client.create_identity("Alice".into(), "ws://localhost:9100".into()).unwrap();
+        let card = client
+            .create_identity("Alice".into(), "ws://localhost:9100".into())
+            .unwrap();
         assert_eq!(card.identity.display_name, "Alice");
         assert!(!card.identity.fingerprint.is_empty());
         assert_eq!(card.identity.fingerprint.len(), 64);
@@ -257,12 +273,12 @@ mod tests {
         let sig = client.sign_data(data.clone()).unwrap();
         assert_eq!(sig.len(), 64);
 
-        let card = client.create_identity("Test".into(), "ws://x".into()).unwrap();
-        let valid = client.verify_signature(
-            card.identity.ed25519_public_key,
-            data,
-            sig,
-        ).unwrap();
+        let card = client
+            .create_identity("Test".into(), "ws://x".into())
+            .unwrap();
+        let valid = client
+            .verify_signature(card.identity.ed25519_public_key, data, sig)
+            .unwrap();
         assert!(valid);
     }
 
@@ -271,21 +287,23 @@ mod tests {
         let (client, _dir) = make_client();
         let sig = client.sign_data(b"original".to_vec()).unwrap();
         let card = client.create_identity("T".into(), "ws://x".into()).unwrap();
-        let valid = client.verify_signature(
-            card.identity.ed25519_public_key,
-            b"tampered".to_vec(),
-            sig,
-        ).unwrap();
+        let valid = client
+            .verify_signature(card.identity.ed25519_public_key, b"tampered".to_vec(), sig)
+            .unwrap();
         assert!(!valid);
     }
 
     #[test]
     fn test_send_and_get_messages() {
         let (client, _dir) = make_client();
-        let msg_id = client.send_message("room-1".into(), "hello ffi".into()).unwrap();
+        let msg_id = client
+            .send_message("room-1".into(), "hello ffi".into())
+            .unwrap();
         assert!(!msg_id.is_empty());
 
-        let msgs = client.get_messages("room-1".into(), 0, 9_999_999_999_999, 50).unwrap();
+        let msgs = client
+            .get_messages("room-1".into(), 0, 9_999_999_999_999, 50)
+            .unwrap();
         assert_eq!(msgs.len(), 1);
         assert_eq!(msgs[0].text, "hello ffi");
         assert_eq!(msgs[0].room_id, "room-1");
@@ -294,9 +312,15 @@ mod tests {
     #[test]
     fn test_search() {
         let (client, _dir) = make_client();
-        client.send_message("r1".into(), "rust programming".into()).unwrap();
-        client.send_message("r1".into(), "go language".into()).unwrap();
-        client.send_message("r1".into(), "rust is fast".into()).unwrap();
+        client
+            .send_message("r1".into(), "rust programming".into())
+            .unwrap();
+        client
+            .send_message("r1".into(), "go language".into())
+            .unwrap();
+        client
+            .send_message("r1".into(), "rust is fast".into())
+            .unwrap();
 
         let results = client.search("rust".into(), 10).unwrap();
         assert_eq!(results.len(), 2);
@@ -306,7 +330,9 @@ mod tests {
     fn test_search_chinese() {
         let (client, _dir) = make_client();
         client.send_message("r1".into(), "你好世界".into()).unwrap();
-        client.send_message("r1".into(), "今天天气好".into()).unwrap();
+        client
+            .send_message("r1".into(), "今天天气好".into())
+            .unwrap();
 
         let results = client.search("你".into(), 10).unwrap();
         assert_eq!(results.len(), 1);
@@ -315,11 +341,19 @@ mod tests {
     #[test]
     fn test_multiple_rooms() {
         let (client, _dir) = make_client();
-        client.send_message("room-a".into(), "msg a".into()).unwrap();
-        client.send_message("room-b".into(), "msg b".into()).unwrap();
+        client
+            .send_message("room-a".into(), "msg a".into())
+            .unwrap();
+        client
+            .send_message("room-b".into(), "msg b".into())
+            .unwrap();
 
-        let a = client.get_messages("room-a".into(), 0, 9_999_999_999_999, 50).unwrap();
-        let b = client.get_messages("room-b".into(), 0, 9_999_999_999_999, 50).unwrap();
+        let a = client
+            .get_messages("room-a".into(), 0, 9_999_999_999_999, 50)
+            .unwrap();
+        let b = client
+            .get_messages("room-b".into(), 0, 9_999_999_999_999, 50)
+            .unwrap();
         assert_eq!(a.len(), 1);
         assert_eq!(b.len(), 1);
         assert_eq!(a[0].text, "msg a");

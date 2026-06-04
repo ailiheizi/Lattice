@@ -16,23 +16,28 @@ pub struct SqliteStorage {
 
 impl SqliteStorage {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let conn =
-            Connection::open(path).map_err(|e| NextImError::Storage(e.to_string()))?;
-        let storage = Self { conn: Mutex::new(conn) };
+        let conn = Connection::open(path).map_err(|e| NextImError::Storage(e.to_string()))?;
+        let storage = Self {
+            conn: Mutex::new(conn),
+        };
         storage.init_tables()?;
         Ok(storage)
     }
 
     pub fn in_memory() -> Result<Self> {
-        let conn =
-            Connection::open_in_memory().map_err(|e| NextImError::Storage(e.to_string()))?;
-        let storage = Self { conn: Mutex::new(conn) };
+        let conn = Connection::open_in_memory().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let storage = Self {
+            conn: Mutex::new(conn),
+        };
         storage.init_tables()?;
         Ok(storage)
     }
 
     fn init_tables(&self) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         conn.execute_batch(
             "
             CREATE TABLE IF NOT EXISTS messages (
@@ -105,7 +110,10 @@ impl SqliteStorage {
 
 impl Storage for SqliteStorage {
     async fn save_message(&self, msg: &Message) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let data = msg.encode_to_vec();
         // 用 u32 大端长度前缀串联每个哈希，便于后续 P3 直接按顺序解析。
         let prev_hashes = encode_hash_list(&msg.prev_hashes)?;
@@ -131,7 +139,10 @@ impl Storage for SqliteStorage {
         range: &TimeRange,
         page: &Pagination,
     ) -> Result<Vec<Message>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare(
                 "SELECT data FROM messages WHERE room_id = ?1 AND timestamp >= ?2 AND timestamp <= ?3 ORDER BY timestamp ASC LIMIT ?4 OFFSET ?5",
@@ -140,7 +151,13 @@ impl Storage for SqliteStorage {
 
         let rows = stmt
             .query_map(
-                params![room_id, range.start as i64, range.end as i64, page.limit, page.offset as i64],
+                params![
+                    room_id,
+                    range.start as i64,
+                    range.end as i64,
+                    page.limit,
+                    page.offset as i64
+                ],
                 |row| row.get::<_, Vec<u8>>(0),
             )
             .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -156,7 +173,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_message(&self, msg_id: &str) -> Result<Option<Message>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT data FROM messages WHERE msg_id = ?1")
             .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -177,14 +197,20 @@ impl Storage for SqliteStorage {
     }
 
     async fn delete_message(&self, msg_id: &str) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         conn.execute("DELETE FROM messages WHERE msg_id = ?1", params![msg_id])
             .map_err(|e| NextImError::Storage(e.to_string()))?;
         Ok(())
     }
 
     async fn save_message_edge(&self, child_hash: &[u8], parent_hash: &[u8]) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO message_edges (child_hash, parent_hash) VALUES (?1, ?2)",
             params![child_hash, parent_hash],
@@ -194,7 +220,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_message_parents(&self, child_hash: &[u8]) -> Result<Vec<Vec<u8>>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT parent_hash FROM message_edges WHERE child_hash = ?1 ORDER BY parent_hash ASC")
             .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -211,7 +240,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_head_message_hashes(&self) -> Result<Vec<Vec<u8>>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare(
                 "SELECT DISTINCT child_hash FROM message_edges WHERE child_hash NOT IN (SELECT parent_hash FROM message_edges) ORDER BY child_hash ASC",
@@ -230,7 +262,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn save_pending_message(&self, pending: &PendingMessage) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         conn.execute(
             "INSERT OR REPLACE INTO pending_messages (msg_hash, data, received_ts) VALUES (?1, ?2, ?3)",
             params![pending.msg_hash, pending.data, pending.received_ts as i64],
@@ -240,7 +275,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_pending_message(&self, msg_hash: &[u8]) -> Result<Option<PendingMessage>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT msg_hash, data, received_ts FROM pending_messages WHERE msg_hash = ?1")
             .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -257,7 +295,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn list_pending_messages(&self) -> Result<Vec<PendingMessage>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT msg_hash, data, received_ts FROM pending_messages ORDER BY received_ts ASC, msg_hash ASC")
             .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -280,14 +321,23 @@ impl Storage for SqliteStorage {
     }
 
     async fn delete_pending_message(&self, msg_hash: &[u8]) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
-        conn.execute("DELETE FROM pending_messages WHERE msg_hash = ?1", params![msg_hash])
+        let conn = self
+            .conn
+            .lock()
             .map_err(|e| NextImError::Storage(e.to_string()))?;
+        conn.execute(
+            "DELETE FROM pending_messages WHERE msg_hash = ?1",
+            params![msg_hash],
+        )
+        .map_err(|e| NextImError::Storage(e.to_string()))?;
         Ok(())
     }
 
     async fn save_room(&self, room: &Room) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let data = room.encode_to_vec();
         conn.execute(
             "INSERT OR REPLACE INTO rooms (room_id, data) VALUES (?1, ?2)",
@@ -298,7 +348,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_room(&self, room_id: &str) -> Result<Option<Room>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT data FROM rooms WHERE room_id = ?1")
             .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -318,7 +371,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_rooms(&self) -> Result<Vec<Room>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT data FROM rooms")
             .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -339,14 +395,20 @@ impl Storage for SqliteStorage {
     }
 
     async fn delete_room(&self, room_id: &str) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         conn.execute("DELETE FROM rooms WHERE room_id = ?1", params![room_id])
             .map_err(|e| NextImError::Storage(e.to_string()))?;
         Ok(())
     }
 
     async fn save_room_event(&self, event: &RoomEvent) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let data = event.encode_to_vec();
         let received_ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -371,7 +433,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_room_events(&self, room_id: &str, since_timestamp: u64) -> Result<Vec<RoomEvent>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare(
                 "SELECT data FROM room_events WHERE room_id = ?1 AND timestamp >= ?2 ORDER BY timestamp ASC",
@@ -379,7 +444,9 @@ impl Storage for SqliteStorage {
             .map_err(|e| NextImError::Storage(e.to_string()))?;
 
         let rows = stmt
-            .query_map(params![room_id, since_timestamp as i64], |row| row.get::<_, Vec<u8>>(0))
+            .query_map(params![room_id, since_timestamp as i64], |row| {
+                row.get::<_, Vec<u8>>(0)
+            })
             .map_err(|e| NextImError::Storage(e.to_string()))?;
 
         let mut events = Vec::new();
@@ -394,7 +461,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn save_contact(&self, contact: &Contact) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let fingerprint = contact
             .identity
             .as_ref()
@@ -410,7 +480,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_contact(&self, fingerprint: &str) -> Result<Option<Contact>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT data FROM contacts WHERE fingerprint = ?1")
             .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -430,7 +503,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_contacts(&self) -> Result<Vec<Contact>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT data FROM contacts")
             .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -451,7 +527,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn delete_contact(&self, fingerprint: &str) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         conn.execute(
             "DELETE FROM contacts WHERE fingerprint = ?1",
             params![fingerprint],
@@ -461,7 +540,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn save_device(&self, device: &DeviceInfo) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let data = device.encode_to_vec();
         conn.execute(
             "INSERT OR REPLACE INTO devices (device_id, user_fingerprint, data) VALUES (?1, ?2, ?3)",
@@ -472,7 +554,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_devices(&self, user_fingerprint: &str) -> Result<Vec<DeviceInfo>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT data FROM devices WHERE user_fingerprint = ?1")
             .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -493,7 +578,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn save_key_bundle(&self, bundle: &KeyBundle) -> Result<()> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let data = bundle.encode_to_vec();
         conn.execute(
             "INSERT OR REPLACE INTO key_bundles (fingerprint, data) VALUES (?1, ?2)",
@@ -504,7 +592,10 @@ impl Storage for SqliteStorage {
     }
 
     async fn get_key_bundle(&self, fingerprint: &str) -> Result<Option<KeyBundle>> {
-        let conn = self.conn.lock().map_err(|e| NextImError::Storage(e.to_string()))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
         let mut stmt = conn
             .prepare("SELECT data FROM key_bundles WHERE fingerprint = ?1")
             .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -676,8 +767,14 @@ mod tests {
             storage.save_message(&msg).await.unwrap();
         }
 
-        let range = TimeRange { start: 1003, end: 1007 };
-        let page = Pagination { offset: 0, limit: 100 };
+        let range = TimeRange {
+            start: 1003,
+            end: 1007,
+        };
+        let page = Pagination {
+            offset: 0,
+            limit: 100,
+        };
         let msgs = storage.get_messages("room1", &range, &page).await.unwrap();
         assert_eq!(msgs.len(), 5);
     }
@@ -766,7 +863,11 @@ mod tests {
         assert_eq!(listed[0].msg_hash, pending.msg_hash);
 
         storage.delete_pending_message(&[0x10, 0x20]).await.unwrap();
-        assert!(storage.get_pending_message(&[0x10, 0x20]).await.unwrap().is_none());
+        assert!(storage
+            .get_pending_message(&[0x10, 0x20])
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]

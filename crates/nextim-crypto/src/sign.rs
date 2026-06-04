@@ -331,7 +331,10 @@ mod tests {
         let mut envelope_tampered = envelope_b.clone();
         envelope_tampered.prev_hashes.push(vec![0xCC]);
 
-        assert_eq!(compute_msg_hash(&envelope_a).unwrap(), compute_msg_hash(&envelope_b).unwrap());
+        assert_eq!(
+            compute_msg_hash(&envelope_a).unwrap(),
+            compute_msg_hash(&envelope_b).unwrap()
+        );
         assert_ne!(
             compute_msg_hash(&envelope_a).unwrap(),
             compute_msg_hash(&envelope_tampered).unwrap()

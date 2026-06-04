@@ -3,8 +3,8 @@
 **/target/
 **/*.rs.bk
 *.pdb
-Cargo.lock
-!crates/*/Cargo.lock
+# Cargo.lock 纳入版本控制：本 workspace 含二进制 crate(store/peer)，
+# 提交 lock 保证可复现构建，并让 CI 的 hashFiles(Cargo.lock) 缓存生效。
 
 # Build artifacts
 *.exe

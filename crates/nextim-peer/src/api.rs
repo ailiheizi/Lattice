@@ -1,18 +1,13 @@
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use axum::{
-    extract::State,
-    response::Json,
-    routing::get,
-    Router,
-};
+use axum::{extract::State, response::Json, routing::get, Router};
 use serde::Serialize;
 use tokio::sync::Mutex;
-use tower_http::cors::{CorsLayer, Any};
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
-use crate::cache::{RelayCache, CacheStats, CacheEntryInfo};
+use crate::cache::{CacheEntryInfo, CacheStats, RelayCache};
 use crate::observability::{ConnectionHistory, ConnectionInfo, SharedPeerObservability};
 use crate::PeerConfig;
 
@@ -283,8 +278,10 @@ mod tests {
         assert_eq!(history.len(), 1);
         assert_eq!(history[0]["remote_addr"], "127.0.0.1:9001");
         assert_eq!(history[0]["message_count"], 1);
-        assert!(history[0]["disconnected_at"].as_u64().unwrap()
-            >= history[0]["connected_at"].as_u64().unwrap());
+        assert!(
+            history[0]["disconnected_at"].as_u64().unwrap()
+                >= history[0]["connected_at"].as_u64().unwrap()
+        );
     }
 
     #[tokio::test]
@@ -315,9 +312,9 @@ mod tests {
         assert!(entries.iter().any(|entry| {
             entry["recipient_fingerprint"] == "alice" && entry["size_bytes"] == 5
         }));
-        assert!(entries.iter().any(|entry| {
-            entry["recipient_fingerprint"] == "bob" && entry["size_bytes"] == 5
-        }));
+        assert!(entries
+            .iter()
+            .any(|entry| { entry["recipient_fingerprint"] == "bob" && entry["size_bytes"] == 5 }));
     }
 
     #[tokio::test]

@@ -3,8 +3,8 @@
 //! 简化版：不实现完整 Kademlia 协议，只实现核心的 k-bucket 路由表和 key-value 存储。
 //! 足够用于节点发现场景。
 
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use sha2::{Sha256, Digest};
 
 /// DHT 节点 ID — 256 位（SHA-256 哈希）
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -66,8 +66,8 @@ impl NodeId {
 #[derive(Clone, Debug)]
 pub struct NodeInfo {
     pub id: NodeId,
-    pub address: String,       // WebSocket 地址
-    pub last_seen: u64,        // 最后活跃时间戳
+    pub address: String, // WebSocket 地址
+    pub last_seen: u64,  // 最后活跃时间戳
 }
 
 /// K-Bucket — 存储距离相近的节点
@@ -78,7 +78,10 @@ struct KBucket {
 
 impl KBucket {
     fn new(k: usize) -> Self {
-        Self { nodes: Vec::new(), k }
+        Self {
+            nodes: Vec::new(),
+            k,
+        }
     }
 
     fn insert(&mut self, node: NodeInfo) {
@@ -129,7 +132,11 @@ impl RoutingTable {
         for _ in 0..256 {
             buckets.push(KBucket::new(k));
         }
-        Self { local_id, buckets, k }
+        Self {
+            local_id,
+            buckets,
+            k,
+        }
     }
 
     /// 插入节点到路由表
@@ -198,7 +205,8 @@ impl DhtStore {
 
     /// 发布自己的地址
     pub fn publish(&mut self, fingerprint: &str, address: &str) {
-        self.store.insert(fingerprint.to_string(), address.to_string());
+        self.store
+            .insert(fingerprint.to_string(), address.to_string());
     }
 
     /// 查找地址
@@ -318,13 +326,28 @@ mod tests {
 
         // 插入 3 个节点到同一个 bucket
         // 0x80, 0xC0, 0xA0 都在 bucket 0（第一位为 1）
-        let mut id1 = [0u8; 32]; id1[0] = 0x80;
-        let mut id2 = [0u8; 32]; id2[0] = 0xC0;
-        let mut id3 = [0u8; 32]; id3[0] = 0xA0;
+        let mut id1 = [0u8; 32];
+        id1[0] = 0x80;
+        let mut id2 = [0u8; 32];
+        id2[0] = 0xC0;
+        let mut id3 = [0u8; 32];
+        id3[0] = 0xA0;
 
-        rt.insert(NodeInfo { id: NodeId::from_bytes(id1), address: "ws://1".into(), last_seen: 1 });
-        rt.insert(NodeInfo { id: NodeId::from_bytes(id2), address: "ws://2".into(), last_seen: 2 });
-        rt.insert(NodeInfo { id: NodeId::from_bytes(id3), address: "ws://3".into(), last_seen: 3 });
+        rt.insert(NodeInfo {
+            id: NodeId::from_bytes(id1),
+            address: "ws://1".into(),
+            last_seen: 1,
+        });
+        rt.insert(NodeInfo {
+            id: NodeId::from_bytes(id2),
+            address: "ws://2".into(),
+            last_seen: 2,
+        });
+        rt.insert(NodeInfo {
+            id: NodeId::from_bytes(id3),
+            address: "ws://3".into(),
+            last_seen: 3,
+        });
 
         // k=2，最旧的 (0x80) 应该被淘汰
         let closest = rt.find_closest(&NodeId::from_bytes([0xFF; 32]), 10);
@@ -338,7 +361,10 @@ mod tests {
         let mut dht = DhtStore::new(local, 20);
 
         dht.publish("abc123", "ws://127.0.0.1:9100");
-        assert_eq!(dht.lookup("abc123"), Some(&"ws://127.0.0.1:9100".to_string()));
+        assert_eq!(
+            dht.lookup("abc123"),
+            Some(&"ws://127.0.0.1:9100".to_string())
+        );
         assert_eq!(dht.lookup("nonexistent"), None);
         assert_eq!(dht.record_count(), 1);
 

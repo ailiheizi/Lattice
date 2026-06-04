@@ -38,8 +38,7 @@ pub trait Storage: Send + Sync {
         &self,
         msg_id: &str,
     ) -> impl std::future::Future<Output = Result<Option<Message>>> + Send;
-    fn delete_message(&self, msg_id: &str)
-        -> impl std::future::Future<Output = Result<()>> + Send;
+    fn delete_message(&self, msg_id: &str) -> impl std::future::Future<Output = Result<()>> + Send;
     fn save_message_edge(
         &self,
         child_hash: &[u8],
@@ -49,8 +48,9 @@ pub trait Storage: Send + Sync {
         &self,
         child_hash: &[u8],
     ) -> impl std::future::Future<Output = Result<Vec<Vec<u8>>>> + Send;
-    fn get_head_message_hashes(&self)
-        -> impl std::future::Future<Output = Result<Vec<Vec<u8>>>> + Send;
+    fn get_head_message_hashes(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<Vec<u8>>>> + Send;
     fn save_pending_message(
         &self,
         pending: &PendingMessage,
@@ -59,8 +59,9 @@ pub trait Storage: Send + Sync {
         &self,
         msg_hash: &[u8],
     ) -> impl std::future::Future<Output = Result<Option<PendingMessage>>> + Send;
-    fn list_pending_messages(&self)
-        -> impl std::future::Future<Output = Result<Vec<PendingMessage>>> + Send;
+    fn list_pending_messages(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<PendingMessage>>> + Send;
     fn delete_pending_message(
         &self,
         msg_hash: &[u8],

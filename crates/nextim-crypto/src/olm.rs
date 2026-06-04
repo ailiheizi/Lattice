@@ -2,10 +2,7 @@
 //!
 //! 基于 vodozemac 的 Olm 实现，提供简化的 API。
 
-
-use vodozemac::olm::{
-    Account, AccountPickle, OlmMessage, Session, SessionConfig, SessionPickle,
-};
+use vodozemac::olm::{Account, AccountPickle, OlmMessage, Session, SessionConfig, SessionPickle};
 use vodozemac::Curve25519PublicKey;
 
 /// Olm 账户 — 管理设备的加密密钥
@@ -16,7 +13,9 @@ pub struct OlmAccount {
 impl OlmAccount {
     /// 创建新账户
     pub fn new() -> Self {
-        Self { inner: Account::new() }
+        Self {
+            inner: Account::new(),
+        }
     }
 
     /// 获取 Curve25519 身份密钥
@@ -36,10 +35,7 @@ impl OlmAccount {
 
     /// 获取未发布的 one-time keys（只返回公钥列表）
     pub fn one_time_keys(&self) -> Vec<Curve25519PublicKey> {
-        self.inner
-            .one_time_keys()
-            .into_values()
-            .collect()
+        self.inner.one_time_keys().into_values().collect()
     }
 
     /// 标记 one-time keys 为已发布
@@ -72,12 +68,13 @@ impl OlmAccount {
         their_identity_key: Curve25519PublicKey,
         pre_key_message: &vodozemac::olm::PreKeyMessage,
     ) -> Result<(OlmSession, Vec<u8>), vodozemac::olm::SessionCreationError> {
-        let result = self.inner.create_inbound_session(
-            their_identity_key,
-            pre_key_message,
-        )?;
+        let result = self
+            .inner
+            .create_inbound_session(their_identity_key, pre_key_message)?;
         Ok((
-            OlmSession { inner: result.session },
+            OlmSession {
+                inner: result.session,
+            },
             result.plaintext,
         ))
     }
@@ -90,8 +87,7 @@ impl OlmAccount {
 
     /// 反序列化（unpickle）账户
     pub fn from_pickle(data: &str) -> Result<Self, String> {
-        let pickle: AccountPickle = serde_json::from_str(data)
-            .map_err(|e| e.to_string())?;
+        let pickle: AccountPickle = serde_json::from_str(data).map_err(|e| e.to_string())?;
         let inner = Account::from(pickle);
         Ok(Self { inner })
     }
@@ -115,7 +111,10 @@ impl OlmSession {
     }
 
     /// 解密消息
-    pub fn decrypt(&mut self, message: &OlmMessage) -> Result<Vec<u8>, vodozemac::olm::DecryptionError> {
+    pub fn decrypt(
+        &mut self,
+        message: &OlmMessage,
+    ) -> Result<Vec<u8>, vodozemac::olm::DecryptionError> {
         self.inner.decrypt(message)
     }
 
@@ -132,8 +131,7 @@ impl OlmSession {
 
     /// 反序列化会话
     pub fn from_pickle(data: &str) -> Result<Self, String> {
-        let pickle: SessionPickle = serde_json::from_str(data)
-            .map_err(|e| e.to_string())?;
+        let pickle: SessionPickle = serde_json::from_str(data).map_err(|e| e.to_string())?;
         let inner = Session::from(pickle);
         Ok(Self { inner })
     }
@@ -164,10 +162,8 @@ mod tests {
         let bob_one_time_key = &bob_otk[0];
 
         // Alice 创建出站会话
-        let mut alice_session = alice.create_outbound_session(
-            bob.curve25519_key(),
-            *bob_one_time_key,
-        );
+        let mut alice_session =
+            alice.create_outbound_session(bob.curve25519_key(), *bob_one_time_key);
 
         // Alice 加密消息
         let plaintext = b"hello bob, this is encrypted!";
@@ -200,10 +196,7 @@ mod tests {
         let bob_otk = bob.one_time_keys();
         let bob_one_time_key = &bob_otk[0];
 
-        let session = alice.create_outbound_session(
-            bob.curve25519_key(),
-            *bob_one_time_key,
-        );
+        let session = alice.create_outbound_session(bob.curve25519_key(), *bob_one_time_key);
 
         let session_id = session.session_id();
         let pickled = session.pickle();

@@ -32,7 +32,10 @@ impl DeviceManager {
 
     /// 注销设备
     pub fn unregister_device(&mut self, device_id: &str) -> Result<DeviceInfo, DeviceError> {
-        let idx = self.devices.iter().position(|d| d.device_id == device_id)
+        let idx = self
+            .devices
+            .iter()
+            .position(|d| d.device_id == device_id)
             .ok_or_else(|| DeviceError::NotFound(device_id.to_string()))?;
         Ok(self.devices.remove(idx))
     }
@@ -106,7 +109,8 @@ mod tests {
     #[test]
     fn test_register_duplicate() {
         let mut mgr = DeviceManager::new("user-fp");
-        mgr.register_device(make_device("dev-1", "user-fp")).unwrap();
+        mgr.register_device(make_device("dev-1", "user-fp"))
+            .unwrap();
         let result = mgr.register_device(make_device("dev-1", "user-fp"));
         assert!(matches!(result, Err(DeviceError::AlreadyRegistered(_))));
     }
@@ -114,8 +118,10 @@ mod tests {
     #[test]
     fn test_unregister_device() {
         let mut mgr = DeviceManager::new("user-fp");
-        mgr.register_device(make_device("dev-1", "user-fp")).unwrap();
-        mgr.register_device(make_device("dev-2", "user-fp")).unwrap();
+        mgr.register_device(make_device("dev-1", "user-fp"))
+            .unwrap();
+        mgr.register_device(make_device("dev-2", "user-fp"))
+            .unwrap();
 
         let removed = mgr.unregister_device("dev-1").unwrap();
         assert_eq!(removed.device_id, "dev-1");
@@ -132,7 +138,8 @@ mod tests {
     #[test]
     fn test_get_device() {
         let mut mgr = DeviceManager::new("user-fp");
-        mgr.register_device(make_device("dev-1", "user-fp")).unwrap();
+        mgr.register_device(make_device("dev-1", "user-fp"))
+            .unwrap();
 
         assert!(mgr.get_device("dev-1").is_some());
         assert!(mgr.get_device("dev-999").is_none());
@@ -142,7 +149,8 @@ mod tests {
     fn test_multiple_devices() {
         let mut mgr = DeviceManager::new("user-fp");
         for i in 0..5 {
-            mgr.register_device(make_device(&format!("dev-{i}"), "user-fp")).unwrap();
+            mgr.register_device(make_device(&format!("dev-{i}"), "user-fp"))
+                .unwrap();
         }
         assert_eq!(mgr.device_count(), 5);
         assert_eq!(mgr.devices().len(), 5);

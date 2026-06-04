@@ -173,10 +173,16 @@ mod tests {
     fn test_unblock() {
         let mut policy = ExchangePolicy::new(TrustLevel::Public);
         policy.block("user");
-        assert_eq!(policy.should_accept("user", true, true), AcceptResult::Blocked);
+        assert_eq!(
+            policy.should_accept("user", true, true),
+            AcceptResult::Blocked
+        );
 
         policy.unblock("user");
-        assert_eq!(policy.should_accept("user", true, true), AcceptResult::Accept);
+        assert_eq!(
+            policy.should_accept("user", true, true),
+            AcceptResult::Accept
+        );
     }
 
     #[test]

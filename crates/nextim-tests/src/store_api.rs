@@ -98,11 +98,13 @@ async fn health_identity_and_keys_use_real_store_state() {
         keys_before["curve25519_identity_key"],
         generated["curve25519_identity_key"]
     );
-    assert!(keys_before["curve25519_identity_key"]
-        .as_str()
-        .unwrap()
-        .len()
-        > 10);
+    assert!(
+        keys_before["curve25519_identity_key"]
+            .as_str()
+            .unwrap()
+            .len()
+            > 10
+    );
     assert!(generated["one_time_keys"].is_array());
 
     handle.abort();
@@ -180,13 +182,17 @@ async fn store_api_persists_messages_and_search_via_real_routes() {
         .unwrap();
 
     assert_eq!(search_results.len(), 2);
-    assert!(search_results.iter().any(|result| result["msg_id"] == msg_id));
+    assert!(search_results
+        .iter()
+        .any(|result| result["msg_id"] == msg_id));
     assert!(search_results
         .iter()
         .any(|result| result["msg_id"] == second_msg_id));
 
     let room_search_results: Vec<serde_json::Value> = client
-        .get(format!("{url}/search?q=store&room_id=integration-room-a&limit=10"))
+        .get(format!(
+            "{url}/search?q=store&room_id=integration-room-a&limit=10"
+        ))
         .send()
         .await
         .unwrap()
@@ -408,7 +414,12 @@ async fn store_api_registers_and_lists_devices_via_real_routes() {
     // 构造一台由主密钥签名的设备注册请求体。
     let make_device_req = |master: &MasterKeyPair, device_id: &str, name: &str| {
         let dk = DeviceKeyPair::generate();
-        let info = master.sign_device(device_id, name, &dk.verifying_key(), &dk.encryption_public_key());
+        let info = master.sign_device(
+            device_id,
+            name,
+            &dk.verifying_key(),
+            &dk.encryption_public_key(),
+        );
         serde_json::json!({
             "device_id": device_id,
             "user_fingerprint": master.fingerprint(),
@@ -423,14 +434,24 @@ async fn store_api_registers_and_lists_devices_via_real_routes() {
     // 初始无设备
     let empty: Vec<serde_json::Value> = client
         .get(format!("{url}/devices/{user}"))
-        .send().await.unwrap().json().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
     assert!(empty.is_empty());
 
     // 合法注册第一台设备
     let phone: serde_json::Value = client
         .post(format!("{url}/devices"))
         .json(&make_device_req(&master, "phone-1", "Alice Phone"))
-        .send().await.unwrap().json().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
     assert_eq!(phone["device_id"], "phone-1");
     assert_eq!(phone["device_name"], "Alice Phone");
     assert!(phone["created_at"].as_u64().unwrap() > 0);
@@ -439,13 +460,20 @@ async fn store_api_registers_and_lists_devices_via_real_routes() {
     let laptop_status = client
         .post(format!("{url}/devices"))
         .json(&make_device_req(&master, "laptop-1", "Alice Laptop"))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(laptop_status.status(), 200);
 
     // 新设备发现同账号已注册设备：列表返回两台
     let devices: Vec<serde_json::Value> = client
         .get(format!("{url}/devices/{user}"))
-        .send().await.unwrap().json().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
     assert_eq!(devices.len(), 2);
     assert!(devices.iter().any(|d| d["device_id"] == "phone-1"));
     assert!(devices.iter().any(|d| d["device_id"] == "laptop-1"));
@@ -454,13 +482,20 @@ async fn store_api_registers_and_lists_devices_via_real_routes() {
     let duplicate = client
         .post(format!("{url}/devices"))
         .json(&make_device_req(&master, "phone-1", "dup"))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(duplicate.status(), 409);
 
     // 冒名攻击：用攻击者自己的主密钥签名，但声称是受害者 user_fingerprint → 403
     let attacker = MasterKeyPair::generate();
     let dk = DeviceKeyPair::generate();
-    let forged = attacker.sign_device("evil-1", "evil", &dk.verifying_key(), &dk.encryption_public_key());
+    let forged = attacker.sign_device(
+        "evil-1",
+        "evil",
+        &dk.verifying_key(),
+        &dk.encryption_public_key(),
+    );
     let impersonation = client
         .post(format!("{url}/devices"))
         .json(&serde_json::json!({
@@ -471,8 +506,14 @@ async fn store_api_registers_and_lists_devices_via_real_routes() {
             "signature": b64(&forged.signature),
             "master_ed25519_key": master_b64.clone(),       // 受害者真公钥，但签名不是它签的
         }))
-        .send().await.unwrap();
-    assert_eq!(impersonation.status(), 403, "forged device signature must be rejected");
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        impersonation.status(),
+        403,
+        "forged device signature must be rejected"
+    );
 
     // 主公钥与声称指纹不符 → 403
     let mismatch = client
@@ -485,8 +526,14 @@ async fn store_api_registers_and_lists_devices_via_real_routes() {
             "signature": b64(&forged.signature),
             "master_ed25519_key": b64(attacker.verifying_key().as_bytes()), // 公钥指纹≠user
         }))
-        .send().await.unwrap();
-    assert_eq!(mismatch.status(), 403, "master key not matching fingerprint must be rejected");
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        mismatch.status(),
+        403,
+        "master key not matching fingerprint must be rejected"
+    );
 
     handle.abort();
 }

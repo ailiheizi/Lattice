@@ -5,8 +5,7 @@
 //! - InboundGroupSession: 接收方持有，用于解密群消息
 
 use vodozemac::megolm::{
-    GroupSession, GroupSessionPickle,
-    InboundGroupSession, InboundGroupSessionPickle,
+    GroupSession, GroupSessionPickle, InboundGroupSession, InboundGroupSessionPickle,
     MegolmMessage, SessionKey,
 };
 
@@ -18,7 +17,9 @@ pub struct MegolmOutboundSession {
 impl MegolmOutboundSession {
     /// 创建新的出站会话
     pub fn new() -> Self {
-        Self { inner: GroupSession::new(Default::default()) }
+        Self {
+            inner: GroupSession::new(Default::default()),
+        }
     }
 
     /// 加密消息
@@ -48,9 +49,10 @@ impl MegolmOutboundSession {
 
     /// 反序列化
     pub fn from_pickle(data: &str) -> Result<Self, String> {
-        let pickle: GroupSessionPickle = serde_json::from_str(data)
-            .map_err(|e| e.to_string())?;
-        Ok(Self { inner: GroupSession::from(pickle) })
+        let pickle: GroupSessionPickle = serde_json::from_str(data).map_err(|e| e.to_string())?;
+        Ok(Self {
+            inner: GroupSession::from(pickle),
+        })
     }
 }
 
@@ -93,9 +95,11 @@ impl MegolmInboundSession {
 
     /// 反序列化
     pub fn from_pickle(data: &str) -> Result<Self, String> {
-        let pickle: InboundGroupSessionPickle = serde_json::from_str(data)
-            .map_err(|e| e.to_string())?;
-        Ok(Self { inner: InboundGroupSession::from(pickle) })
+        let pickle: InboundGroupSessionPickle =
+            serde_json::from_str(data).map_err(|e| e.to_string())?;
+        Ok(Self {
+            inner: InboundGroupSession::from(pickle),
+        })
     }
 }
 

@@ -152,10 +152,12 @@ async fn handle_frame(
 
             let verified = !envelope.signature.is_empty();
             let received_ts = now_received_ts();
-            let msg_hash = sign::compute_msg_hash(envelope)
-                .map_err(|e| anyhow::anyhow!("compute message hash for {}: {e}", envelope.msg_id))?;
+            let msg_hash = sign::compute_msg_hash(envelope).map_err(|e| {
+                anyhow::anyhow!("compute message hash for {}: {e}", envelope.msg_id)
+            })?;
 
-            persist_incoming_message(state, envelope, received_ts, verified, msg_hash.clone()).await?;
+            persist_incoming_message(state, envelope, received_ts, verified, msg_hash.clone())
+                .await?;
 
             let recipient = &envelope.recipient_fingerprint;
             let frame_data = frame.encode_to_vec();
@@ -357,8 +359,10 @@ async fn handle_frame(
                 });
             }
             let ordered = nextim_core::dag::deterministic_order(&timeline_nodes);
-            let envelopes_by_hash: BTreeMap<Vec<u8>, &nextim_proto::message::Envelope> =
-                envelopes.iter().map(|e| (e.payload_hash.clone(), e)).collect();
+            let envelopes_by_hash: BTreeMap<Vec<u8>, &nextim_proto::message::Envelope> = envelopes
+                .iter()
+                .map(|e| (e.payload_hash.clone(), e))
+                .collect();
             let events_by_hash: BTreeMap<Vec<u8>, &nextim_proto::group::RoomEvent> =
                 events.iter().map(|e| (e.msg_hash.clone(), e)).collect();
             let mut timeline = Vec::with_capacity(ordered.len());
@@ -367,12 +371,12 @@ async fn handle_frame(
                     Some(nextim_proto::transport::sync_timeline_item::Item::Message(
                         (*env).clone(),
                     ))
-                } else if let Some(event) = events_by_hash.get(&node.msg_hash) {
-                    Some(nextim_proto::transport::sync_timeline_item::Item::RoomEvent(
-                        (*event).clone(),
-                    ))
                 } else {
-                    None
+                    events_by_hash.get(&node.msg_hash).map(|event| {
+                        nextim_proto::transport::sync_timeline_item::Item::RoomEvent(
+                            (*event).clone(),
+                        )
+                    })
                 };
                 if item.is_some() {
                     timeline.push(nextim_proto::transport::SyncTimelineItem {
@@ -466,7 +470,10 @@ fn envelope_to_message(
     }
 }
 
-async fn get_all_messages_for_room(state: &Arc<AppState>, room_id: &str) -> anyhow::Result<Vec<Message>> {
+async fn get_all_messages_for_room(
+    state: &Arc<AppState>,
+    room_id: &str,
+) -> anyhow::Result<Vec<Message>> {
     use nextim_core::traits::storage::{Pagination, TimeRange};
 
     state
@@ -486,9 +493,15 @@ async fn get_all_messages_for_room(state: &Arc<AppState>, room_id: &str) -> anyh
         .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
-async fn known_hashes_for_room(state: &Arc<AppState>, room_id: &str) -> anyhow::Result<BTreeSet<Vec<u8>>> {
+async fn known_hashes_for_room(
+    state: &Arc<AppState>,
+    room_id: &str,
+) -> anyhow::Result<BTreeSet<Vec<u8>>> {
     let messages = get_all_messages_for_room(state, room_id).await?;
-    Ok(messages.into_iter().map(|message| message.msg_hash).collect())
+    Ok(messages
+        .into_iter()
+        .map(|message| message.msg_hash)
+        .collect())
 }
 
 fn collect_missing_parents(message: &Message, known_hashes: &BTreeSet<Vec<u8>>) -> Vec<Vec<u8>> {
@@ -537,7 +550,12 @@ async fn promote_pending_messages(state: &Arc<AppState>, room_id: &str) -> anyho
                 continue;
             }
 
-            let message = envelope_to_message(&envelope, pending_msg.received_ts, true, pending_msg.msg_hash.clone());
+            let message = envelope_to_message(
+                &envelope,
+                pending_msg.received_ts,
+                true,
+                pending_msg.msg_hash.clone(),
+            );
             let known_hashes = known_hashes_for_room(state, room_id).await?;
             if !collect_missing_parents(&message, &known_hashes).is_empty() {
                 continue;
@@ -549,10 +567,7 @@ async fn promote_pending_messages(state: &Arc<AppState>, room_id: &str) -> anyho
                 .delete_pending_message(&pending_msg.msg_hash)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
-            tracing::info!(
-                "Promoted pending message {} into room DAG",
-                message.msg_id
-            );
+            tracing::info!("Promoted pending message {} into room DAG", message.msg_id);
             promoted_any = true;
         }
 
@@ -600,7 +615,11 @@ async fn persist_incoming_message(
 
     store_finalized_message(state, &message).await?;
     promote_pending_messages(state, &message.room_id).await?;
-    tracing::info!("Stored message {} from {}", message.msg_id, message.sender_fingerprint);
+    tracing::info!(
+        "Stored message {} from {}",
+        message.msg_id,
+        message.sender_fingerprint
+    );
     Ok(())
 }
 
@@ -1089,8 +1108,18 @@ mod tests {
             .expect("child message should be accepted")
             .expect("child message should return ack");
 
-        assert!(state.storage.get_message("child-msg").await.unwrap().is_none());
-        assert!(state.storage.get_pending_message(&child_hash).await.unwrap().is_some());
+        assert!(state
+            .storage
+            .get_message("child-msg")
+            .await
+            .unwrap()
+            .is_none());
+        assert!(state
+            .storage
+            .get_pending_message(&child_hash)
+            .await
+            .unwrap()
+            .is_some());
 
         let parent_frame = Frame {
             seq: 8,
@@ -1103,7 +1132,12 @@ mod tests {
             .expect("parent message should be accepted")
             .expect("parent message should return ack");
 
-        assert!(state.storage.get_pending_message(&child_hash).await.unwrap().is_none());
+        assert!(state
+            .storage
+            .get_pending_message(&child_hash)
+            .await
+            .unwrap()
+            .is_none());
         let child = state
             .storage
             .get_message("child-msg")

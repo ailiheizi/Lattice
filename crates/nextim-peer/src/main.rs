@@ -1,8 +1,8 @@
+mod api;
 mod cache;
 mod observability;
 mod relay;
 pub mod stun;
-mod api;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -31,11 +31,21 @@ pub struct PeerConfig {
     pub eviction_interval_ms: u64,
 }
 
-fn default_listen_addr() -> String { "127.0.0.1:9200".to_string() }
-fn default_api_addr() -> String { "127.0.0.1:9201".to_string() }
-fn default_max_cache() -> usize { 10_000 }
-fn default_ttl() -> u64 { 3_600_000 }
-fn default_eviction_interval() -> u64 { 60_000 }
+fn default_listen_addr() -> String {
+    "127.0.0.1:9200".to_string()
+}
+fn default_api_addr() -> String {
+    "127.0.0.1:9201".to_string()
+}
+fn default_max_cache() -> usize {
+    10_000
+}
+fn default_ttl() -> u64 {
+    3_600_000
+}
+fn default_eviction_interval() -> u64 {
+    60_000
+}
 
 impl Default for PeerConfig {
     fn default() -> Self {
@@ -57,9 +67,9 @@ async fn run_eviction_loop(
     interval_ms: u64,
 ) {
     use futures_util::{SinkExt, StreamExt};
+    use nextim_proto::transport::Frame;
     use prost::Message as ProstMessage;
     use tokio_tungstenite::{connect_async, tungstenite::Message as WsMessage};
-    use nextim_proto::transport::Frame;
 
     let interval = std::time::Duration::from_millis(interval_ms);
 
@@ -78,7 +88,10 @@ async fn run_eviction_loop(
         tracing::info!("Evicting {} expired messages", expired.len());
 
         if proxy_stores.is_empty() {
-            tracing::warn!("No proxy stores configured, dropping {} expired messages", expired.len());
+            tracing::warn!(
+                "No proxy stores configured, dropping {} expired messages",
+                expired.len()
+            );
             continue;
         }
 
@@ -92,14 +105,18 @@ async fn run_eviction_loop(
                             // 等待 ACK
                             if let Some(Ok(WsMessage::Binary(ack_data))) = ws.next().await {
                                 if let Ok(ack) = Frame::decode(ack_data.as_ref()) {
-                                    if ack.r#type == nextim_proto::transport::FrameType::Ack as i32 {
+                                    if ack.r#type == nextim_proto::transport::FrameType::Ack as i32
+                                    {
                                         forwarded += 1;
                                     }
                                 }
                             }
                         }
                     }
-                    tracing::info!("Forwarded {forwarded}/{} expired messages to {proxy_addr}", expired.len());
+                    tracing::info!(
+                        "Forwarded {forwarded}/{} expired messages to {proxy_addr}",
+                        expired.len()
+                    );
                     ws.close(None).await.ok();
                     break; // 成功转投，不再尝试其他 proxy
                 }
@@ -142,7 +159,11 @@ async fn main() -> Result<()> {
     let eviction_cache = cache.clone();
     let proxy_stores = config.proxy_stores.clone();
     let eviction_interval = config.eviction_interval_ms;
-    tokio::spawn(run_eviction_loop(eviction_cache, proxy_stores, eviction_interval));
+    tokio::spawn(run_eviction_loop(
+        eviction_cache,
+        proxy_stores,
+        eviction_interval,
+    ));
 
     // 启动 REST API 服务
     let api_cache = cache.clone();
@@ -150,7 +171,9 @@ async fn main() -> Result<()> {
     let api_addr = config.api_addr.clone();
     let api_observability = observability.clone();
     tokio::spawn(async move {
-        if let Err(e) = api::run_api_server(api_addr, api_cache, api_config, api_observability).await {
+        if let Err(e) =
+            api::run_api_server(api_addr, api_cache, api_config, api_observability).await
+        {
             tracing::error!("API server error: {e}");
         }
     });
