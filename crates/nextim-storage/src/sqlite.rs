@@ -172,6 +172,37 @@ impl Storage for SqliteStorage {
         Ok(messages)
     }
 
+    async fn get_messages_since(
+        &self,
+        room_id: &str,
+        since_received_ts: u64,
+    ) -> Result<Vec<Message>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT data FROM messages WHERE room_id = ?1 AND received_ts > ?2 ORDER BY received_ts ASC",
+            )
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+
+        let rows = stmt
+            .query_map(params![room_id, since_received_ts as i64], |row| {
+                row.get::<_, Vec<u8>>(0)
+            })
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+
+        let mut messages = Vec::new();
+        for row in rows {
+            let data = row.map_err(|e| NextImError::Storage(e.to_string()))?;
+            let msg = Message::decode(data.as_slice())
+                .map_err(|e| NextImError::Serialization(e.to_string()))?;
+            messages.push(msg);
+        }
+        Ok(messages)
+    }
+
     async fn get_message(&self, msg_id: &str) -> Result<Option<Message>> {
         let conn = self
             .conn
@@ -458,6 +489,40 @@ impl Storage for SqliteStorage {
             );
         }
         Ok(events)
+    }
+
+    async fn get_room_events_since(
+        &self,
+        room_id: &str,
+        since_received_ts: u64,
+    ) -> Result<Vec<nextim_core::traits::storage::RoomEventRecord>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT received_ts, data FROM room_events WHERE room_id = ?1 AND received_ts > ?2 ORDER BY received_ts ASC",
+            )
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+
+        let rows = stmt
+            .query_map(params![room_id, since_received_ts as i64], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?))
+            })
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+
+        let mut records = Vec::new();
+        for row in rows {
+            let (received_ts, data) = row.map_err(|e| NextImError::Storage(e.to_string()))?;
+            let event = RoomEvent::decode(data.as_slice())
+                .map_err(|e| NextImError::Serialization(e.to_string()))?;
+            records.push(nextim_core::traits::storage::RoomEventRecord {
+                event,
+                received_ts: received_ts as u64,
+            });
+        }
+        Ok(records)
     }
 
     async fn save_contact(&self, contact: &Contact) -> Result<()> {

@@ -274,17 +274,6 @@ async fn handle_frame(
         })),
 
         Some(frame::Body::SyncRequest(req)) => {
-            use nextim_core::traits::storage::{Pagination, TimeRange};
-
-            let range = TimeRange {
-                start: req.since_timestamp,
-                end: 9_999_999_999_999,
-            };
-            let page = Pagination {
-                offset: 0,
-                limit: 100,
-            };
-
             let room_ids = if req.room_ids.is_empty() {
                 let rooms = state
                     .storage
@@ -302,7 +291,7 @@ async fn handle_frame(
             for room_id in &room_ids {
                 let msgs = state
                     .storage
-                    .get_messages(room_id, &range, &page)
+                    .get_messages_since(room_id, req.since_timestamp)
                     .await
                     .map_err(|e| anyhow::anyhow!("{e}"))?;
                 for msg in order_messages_for_sync(msgs) {
@@ -332,7 +321,7 @@ async fn handle_frame(
 
                 let room_events = state
                     .storage
-                    .get_room_events(room_id, req.since_timestamp)
+                    .get_room_events_since(room_id, req.since_timestamp)
                     .await
                     .map_err(|e| anyhow::anyhow!("{e}"))?;
                 events.extend(room_events);
@@ -351,11 +340,11 @@ async fn handle_frame(
                         .unwrap_or(env.timestamp),
                 });
             }
-            for event in &events {
+            for record in &events {
                 timeline_nodes.push(nextim_core::dag::DagNode {
-                    msg_hash: event.msg_hash.clone(),
-                    prev_hashes: event.prev_hashes.clone(),
-                    received_ts: event.timestamp,
+                    msg_hash: record.event.msg_hash.clone(),
+                    prev_hashes: record.event.prev_hashes.clone(),
+                    received_ts: record.received_ts,
                 });
             }
             let ordered = nextim_core::dag::deterministic_order(&timeline_nodes);
@@ -363,8 +352,10 @@ async fn handle_frame(
                 .iter()
                 .map(|e| (e.payload_hash.clone(), e))
                 .collect();
-            let events_by_hash: BTreeMap<Vec<u8>, &nextim_proto::group::RoomEvent> =
-                events.iter().map(|e| (e.msg_hash.clone(), e)).collect();
+            let events_by_hash: BTreeMap<Vec<u8>, &nextim_proto::group::RoomEvent> = events
+                .iter()
+                .map(|r| (r.event.msg_hash.clone(), &r.event))
+                .collect();
             let mut timeline = Vec::with_capacity(ordered.len());
             for node in &ordered {
                 let item = if let Some(env) = envelopes_by_hash.get(&node.msg_hash) {
@@ -394,7 +385,7 @@ async fn handle_frame(
                         .get(hash)
                         .map(|message| message.received_ts)
                 })
-                .chain(events.iter().map(|event| event.timestamp))
+                .chain(events.iter().map(|r| r.received_ts))
                 .max()
                 .map(|timestamp| timestamp + 1)
                 .unwrap_or(req.since_timestamp);
@@ -405,7 +396,7 @@ async fn handle_frame(
                 body: Some(frame::Body::SyncResponse(
                     nextim_proto::transport::SyncResponse {
                         messages: envelopes,
-                        events,
+                        events: events.into_iter().map(|r| r.event).collect(),
                         next_batch,
                         timeline,
                     },

@@ -607,7 +607,13 @@ async fn real_ws_server_stores_and_syncs_room_events() {
         assert_eq!(response.events[0].actor_fingerprint, actor_fp);
         assert_eq!(response.events[0].target_fingerprint, "alice-fp");
         assert_eq!(response.events[0].timestamp, 2000);
-        assert_eq!(response.next_batch, 2001);
+        // next_batch 现在是 received_ts 游标（Store 盖的真实毫秒戳），不再等于 origin timestamp+1。
+        // 用它再次 sync 应取不到该事件（游标语义正确）。
+        assert!(
+            response.next_batch > 2000,
+            "next_batch should be a received_ts cursor"
+        );
+        let cursor_after = response.next_batch;
 
         // P4：房间事件已纳入统一 DAG 时间线，并填充了 msg_hash。
         assert_eq!(response.timeline.len(), 1);
@@ -622,6 +628,39 @@ async fn real_ws_server_stores_and_syncs_room_events() {
                 assert_eq!(ev.target_fingerprint, "alice-fp");
             }
             other => panic!("expected room event in timeline, got {other:?}"),
+        }
+
+        // 游标语义验证（Major 2）：用 next_batch 作为 since 再次 sync，
+        // 该事件不应重复返回（received_ts 严格大于过滤）。
+        let resync = Frame {
+            seq: 5,
+            r#type: FrameType::SyncRequest as i32,
+            body: Some(frame::Body::SyncRequest(SyncRequest {
+                since_timestamp: cursor_after,
+                room_ids: vec![room.to_string()],
+                requester_fingerprint: String::new(),
+            })),
+        };
+        ws.send(WsMessage::Binary(resync.encode_to_vec()))
+            .await
+            .unwrap();
+        let resync_resp = ws.next().await.unwrap().unwrap();
+        if let WsMessage::Binary(data) = resync_resp {
+            if let Some(frame::Body::SyncResponse(r2)) = Frame::decode(data.as_ref()).unwrap().body
+            {
+                assert!(
+                    r2.events.is_empty(),
+                    "cursor must not re-deliver same event"
+                );
+                assert!(
+                    r2.timeline.is_empty(),
+                    "cursor must not re-deliver in timeline"
+                );
+            } else {
+                panic!("expected sync response on resync");
+            }
+        } else {
+            panic!("expected binary resync response");
         }
     } else {
         panic!("expected sync response body");
