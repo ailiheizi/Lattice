@@ -50,6 +50,28 @@ fn append_length_prefixed(buf: &mut Vec<u8>, bytes: &[u8]) -> Result<(), SignVer
     Ok(())
 }
 
+/// 计算 RoomEvent 的 DAG 哈希。
+///
+/// 覆盖 room_id、actor_fingerprint、type、target_fingerprint 及排序后的 prev_hashes，
+/// 使房间事件能与消息一同纳入同一 DAG 全序。与 `compute_msg_hash` 一样不含 timestamp。
+pub fn compute_room_event_hash(
+    event: &nextim_proto::group::RoomEvent,
+) -> Result<Vec<u8>, SignVerifyError> {
+    let mut encoded = Vec::new();
+    append_length_prefixed(&mut encoded, event.room_id.as_bytes())?;
+    append_length_prefixed(&mut encoded, event.actor_fingerprint.as_bytes())?;
+    encoded.extend_from_slice(&event.r#type.to_be_bytes());
+    append_length_prefixed(&mut encoded, event.target_fingerprint.as_bytes())?;
+
+    let mut sorted_prev = event.prev_hashes.clone();
+    sorted_prev.sort();
+    for parent in &sorted_prev {
+        append_length_prefixed(&mut encoded, parent)?;
+    }
+
+    Ok(sha256(&encoded))
+}
+
 /// 验证消息签名
 ///
 /// 检查 Envelope 中的 signature 是否由 sender 的公钥签发，

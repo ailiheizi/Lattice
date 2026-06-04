@@ -546,6 +546,18 @@ async fn real_ws_server_stores_and_syncs_room_events() {
         assert_eq!(response.events[0].target_fingerprint, "alice-fp");
         assert_eq!(response.events[0].timestamp, 2000);
         assert_eq!(response.next_batch, 2001);
+
+        // P4：房间事件已纳入统一 DAG 时间线，并填充了 msg_hash。
+        assert_eq!(response.timeline.len(), 1);
+        let item = &response.timeline[0];
+        assert!(!item.msg_hash.is_empty(), "timeline item should carry msg_hash");
+        match &item.item {
+            Some(nextim_proto::transport::sync_timeline_item::Item::RoomEvent(ev)) => {
+                assert_eq!(ev.actor_fingerprint, "owner-fp");
+                assert_eq!(ev.target_fingerprint, "alice-fp");
+            }
+            other => panic!("expected room event in timeline, got {other:?}"),
+        }
     } else {
         panic!("expected sync response body");
     }
@@ -717,4 +729,98 @@ async fn real_ws_server_forwards_to_recipient_store_from_contacts() {
     ws.close(None).await.unwrap();
     server_handle.abort();
     forward_handle.abort();
+}
+
+#[tokio::test]
+async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
+    let (fixture, url, server_handle) = spawn_real_store_server().await;
+    let room = "unified-timeline-room";
+
+    fixture
+        .state
+        .storage
+        .save_room(&Room {
+            room_id: room.to_string(),
+            name: "unified timeline".to_string(),
+            creator_fingerprint: "creator".to_string(),
+            members: vec![],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    // 直接存一条已带 msg_hash 的消息（绕过 WS 签名链，专注验证 timeline 合并）。
+    let stored_msg = nextim_proto::message::Message {
+        msg_id: "unified-msg-1".to_string(),
+        room_id: room.to_string(),
+        sender_fingerprint: "alice-fp".to_string(),
+        timestamp: 500,
+        content: Some(MessageContent {
+            r#type: MessageType::Text as i32,
+            text: "hello timeline".to_string(),
+            ..Default::default()
+        }),
+        encrypted: false,
+        verified: true,
+        encrypted_payload: None,
+        received_ts: 1000,
+        prev_hashes: Vec::new(),
+        msg_hash: b"unified-msg-hash-1".to_vec(),
+    };
+    fixture.state.storage.save_message(&stored_msg).await.unwrap();
+
+    let (mut ws, _) = connect_async(&url).await.unwrap();
+
+    // 再发一个房间事件到同一房间。
+    let event_frame = Frame {
+        seq: 1,
+        r#type: FrameType::RoomEvent as i32,
+        body: Some(frame::Body::RoomEvent(make_room_event(
+            room, "owner-fp", "bob-fp", 3000,
+        ))),
+    };
+    ws.send(WsMessage::Binary(event_frame.encode_to_vec().into())).await.unwrap();
+    let _ = ws.next().await.unwrap().unwrap(); // ack
+
+    let sync = Frame {
+        seq: 2,
+        r#type: FrameType::SyncRequest as i32,
+        body: Some(frame::Body::SyncRequest(SyncRequest {
+            since_timestamp: 0,
+            room_ids: vec![room.to_string()],
+            requester_fingerprint: String::new(),
+        })),
+    };
+    ws.send(WsMessage::Binary(sync.encode_to_vec().into())).await.unwrap();
+
+    let sync_resp = ws.next().await.unwrap().unwrap();
+    let sync_frame = match sync_resp {
+        WsMessage::Binary(data) => Frame::decode(data.as_ref()).unwrap(),
+        other => panic!("expected binary sync response, got {other:?}"),
+    };
+
+    if let Some(frame::Body::SyncResponse(response)) = sync_frame.body {
+        // 统一时间线应同时包含消息与房间事件两类。
+        assert_eq!(response.timeline.len(), 2, "timeline should merge message + room event");
+        let mut has_message = false;
+        let mut has_event = false;
+        for item in &response.timeline {
+            assert!(!item.msg_hash.is_empty());
+            match &item.item {
+                Some(nextim_proto::transport::sync_timeline_item::Item::Message(_)) => {
+                    has_message = true
+                }
+                Some(nextim_proto::transport::sync_timeline_item::Item::RoomEvent(_)) => {
+                    has_event = true
+                }
+                None => panic!("timeline item missing inner item"),
+            }
+        }
+        assert!(has_message && has_event, "timeline must contain both kinds");
+    } else {
+        panic!("expected sync response body");
+    }
+
+    ws.close(None).await.unwrap();
+    server_handle.abort();
 }

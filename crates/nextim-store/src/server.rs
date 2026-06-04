@@ -182,9 +182,17 @@ async fn handle_frame(
         }
 
         Some(frame::Body::RoomEvent(ref event)) => {
+            // 让房间事件进入与消息统一的 DAG：补 msg_hash（若空）以便排序对齐。
+            let mut event = event.clone();
+            if event.msg_hash.is_empty() {
+                if let Ok(hash) = nextim_crypto::sign::compute_room_event_hash(&event) {
+                    event.msg_hash = hash;
+                }
+            }
+
             state
                 .storage
-                .save_room_event(event)
+                .save_room_event(&event)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
 
@@ -277,6 +285,52 @@ async fn handle_frame(
                 events.extend(room_events);
             }
 
+            // 统一时间线：把消息与房间事件放进同一个 DAG 全序，
+            // 使「谁在何时入群/退群」相对消息的位置在所有节点一致。
+            let mut timeline_nodes: Vec<nextim_core::dag::DagNode> = Vec::new();
+            for env in &envelopes {
+                timeline_nodes.push(nextim_core::dag::DagNode {
+                    msg_hash: env.payload_hash.clone(),
+                    prev_hashes: env.prev_hashes.clone(),
+                    received_ts: ordered_messages_by_hash
+                        .get(env.payload_hash.as_slice())
+                        .map(|m| m.received_ts)
+                        .unwrap_or(env.timestamp),
+                });
+            }
+            for event in &events {
+                timeline_nodes.push(nextim_core::dag::DagNode {
+                    msg_hash: event.msg_hash.clone(),
+                    prev_hashes: event.prev_hashes.clone(),
+                    received_ts: event.timestamp,
+                });
+            }
+            let ordered = nextim_core::dag::deterministic_order(&timeline_nodes);
+            let envelopes_by_hash: BTreeMap<Vec<u8>, &nextim_proto::message::Envelope> =
+                envelopes.iter().map(|e| (e.payload_hash.clone(), e)).collect();
+            let events_by_hash: BTreeMap<Vec<u8>, &nextim_proto::group::RoomEvent> =
+                events.iter().map(|e| (e.msg_hash.clone(), e)).collect();
+            let mut timeline = Vec::with_capacity(ordered.len());
+            for node in &ordered {
+                let item = if let Some(env) = envelopes_by_hash.get(&node.msg_hash) {
+                    Some(nextim_proto::transport::sync_timeline_item::Item::Message(
+                        (*env).clone(),
+                    ))
+                } else if let Some(event) = events_by_hash.get(&node.msg_hash) {
+                    Some(nextim_proto::transport::sync_timeline_item::Item::RoomEvent(
+                        (*event).clone(),
+                    ))
+                } else {
+                    None
+                };
+                if item.is_some() {
+                    timeline.push(nextim_proto::transport::SyncTimelineItem {
+                        msg_hash: node.msg_hash.clone(),
+                        item,
+                    });
+                }
+            }
+
             let next_batch = envelopes
                 .iter()
                 .map(|e| e.payload_hash.as_slice())
@@ -298,7 +352,7 @@ async fn handle_frame(
                         messages: envelopes,
                         events,
                         next_batch,
-                        timeline: Vec::new(),
+                        timeline,
                     },
                 )),
             }))
