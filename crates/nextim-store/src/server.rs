@@ -731,6 +731,7 @@ mod tests {
             fingerprint: "store-fp".to_string(),
             display_name: "Store".to_string(),
             ws_addr: "127.0.0.1:0".to_string(),
+            api_token: String::new(),
         })
     }
 

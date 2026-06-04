@@ -32,6 +32,7 @@ fn test_state() -> Arc<AppState> {
         fingerprint,
         display_name: "Test Store".to_string(),
         ws_addr: "127.0.0.1:0".to_string(),
+        api_token: String::new(),
     })
 }
 
@@ -495,6 +496,95 @@ async fn store_api_registers_and_lists_devices_via_real_routes() {
         .await
         .unwrap();
     assert!(other_user_devices.is_empty());
+
+    handle.abort();
+}
+
+async fn start_store_api_with_token(token: &str) -> (String, tokio::task::JoinHandle<()>) {
+    let storage = SqliteStorage::in_memory().expect("in-memory storage");
+    let search = TantivySearch::in_memory().expect("in-memory search");
+    let identity = MasterKeyPair::generate();
+    let fingerprint = identity.fingerprint();
+    let mut olm = OlmAccount::new();
+    olm.generate_one_time_keys(5);
+    olm.mark_keys_as_published();
+
+    let state = Arc::new(AppState {
+        storage,
+        search,
+        online: Arc::new(RwLock::new(HashMap::new())) as OnlineConnections,
+        outbound: Arc::new(RwLock::new(HashMap::new())) as OutboundPool,
+        identity,
+        olm_account: Mutex::new(olm),
+        fingerprint,
+        display_name: "Auth Test Store".to_string(),
+        ws_addr: "127.0.0.1:0".to_string(),
+        api_token: token.to_string(),
+    });
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let url = format!("http://127.0.0.1:{}", addr.port());
+    let handle = tokio::spawn(async move {
+        api::serve_api(listener, state).await.unwrap();
+    });
+    (url, handle)
+}
+
+#[tokio::test]
+async fn write_endpoints_require_bearer_token() {
+    let token = "secret-admin-token";
+    let (url, handle) = start_store_api_with_token(token).await;
+    let client = reqwest::Client::new();
+
+    // 只读端点无需 token：放行。
+    let health = client.get(format!("{url}/health")).send().await.unwrap();
+    assert_eq!(health.status(), 200);
+    let identity = client.get(format!("{url}/identity")).send().await.unwrap();
+    assert_eq!(identity.status(), 200);
+
+    // 写端点无 token → 401。
+    let no_token = client
+        .post(format!("{url}/rooms"))
+        .json(&serde_json::json!({
+            "name": "x", "creator_fingerprint": "fp", "room_type": "Group"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(no_token.status(), 401);
+
+    // 写端点错 token → 401。
+    let bad_token = client
+        .post(format!("{url}/rooms"))
+        .header("Authorization", "Bearer wrong-token")
+        .json(&serde_json::json!({
+            "name": "x", "creator_fingerprint": "fp", "room_type": "Group"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(bad_token.status(), 401);
+
+    // 写端点有效 token → 通过（非 401）。
+    let good_token = client
+        .post(format!("{url}/rooms"))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({
+            "name": "authorized room", "creator_fingerprint": "fp", "room_type": "Group"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_ne!(good_token.status(), 401, "valid token must not be rejected");
+
+    // DELETE 无 token → 401。
+    let delete_no_token = client
+        .delete(format!("{url}/messages/id/whatever"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(delete_no_token.status(), 401);
 
     handle.abort();
 }

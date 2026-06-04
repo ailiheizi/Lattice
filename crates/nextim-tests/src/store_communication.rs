@@ -48,6 +48,7 @@ fn test_state(data_dir: PathBuf) -> Arc<AppState> {
         fingerprint,
         display_name: "WS Test Store".to_string(),
         ws_addr: "127.0.0.1:0".to_string(),
+        api_token: String::new(),
     })
 }
 

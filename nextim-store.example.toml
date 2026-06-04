@@ -15,3 +15,8 @@ display_name = "My Store"
 
 # 代收 Store 地址（离线时消息暂存到这里，留空则不启用）
 proxy_store_address = ""
+
+# REST 管理接口的 Bearer token（保护写操作：发消息/建房/删消息/踢人/注册设备等）。
+# 留空则启动时自动生成一个并打印到日志——生产环境务必显式设置一个高强度随机值。
+# 客户端调用写接口时需带 HTTP 头：Authorization: Bearer <token>
+api_token = ""

@@ -38,6 +38,9 @@ pub struct StoreConfig {
     pub proxy_store_address: String,
     #[serde(default)]
     pub display_name: String,
+    /// REST 管理接口的 Bearer token；留空则启动时自动生成。
+    #[serde(default)]
+    pub api_token: String,
 }
 
 fn default_ws_addr() -> String {
@@ -58,6 +61,7 @@ impl Default for StoreConfig {
             data_dir: default_data_dir(),
             proxy_store_address: String::new(),
             display_name: String::new(),
+            api_token: String::new(),
         }
     }
 }
@@ -80,6 +84,8 @@ pub struct AppState {
     pub fingerprint: String,
     pub display_name: String,
     pub ws_addr: String,
+    /// REST 管理接口的 Bearer token。空字符串表示未启用鉴权（仅应在测试中出现）。
+    pub api_token: String,
 }
 
 pub async fn run() -> Result<()> {
@@ -151,6 +157,22 @@ pub async fn run() -> Result<()> {
     olm_account.mark_keys_as_published();
     tracing::info!("Olm account ready with 10 one-time keys");
 
+    // REST 管理接口的 Bearer token：配置提供则用，否则随机生成并打印一次。
+    let api_token = if config.api_token.is_empty() {
+        let token = format!(
+            "{}{}",
+            uuid::Uuid::new_v4().simple(),
+            uuid::Uuid::new_v4().simple()
+        );
+        tracing::warn!(
+            "No api_token in config; generated one for this session: {token}\n  \
+             Set `api_token` in nextim-store.toml to persist it across restarts."
+        );
+        token
+    } else {
+        config.api_token.clone()
+    };
+
     let state = Arc::new(AppState {
         storage,
         search,
@@ -161,6 +183,7 @@ pub async fn run() -> Result<()> {
         ws_addr: config.ws_addr.clone(),
         identity,
         olm_account: Mutex::new(olm_account),
+        api_token,
     });
 
     tracing::info!("NextIM Store starting...");

@@ -158,7 +158,7 @@ cargo run --release --bin nextim-peer
 
 默认监听：relay `0.0.0.0:9200`、管理 API `0.0.0.0:9201`。
 
-> ⚠️ **安全提示**：Store/Peer 的 WebSocket 与 REST 接口默认**无内置鉴权**。生产部署务必置于反向代理之后并启用 TLS + 访问控制，详见 [`docs/deployment.md`](docs/deployment.md)。
+> ⚠️ **安全提示**：Store 的 REST **写接口**（POST/DELETE）已要求 `Authorization: Bearer <api_token>`，只读接口（health/identity/消息读取/搜索）公开。Peer 管理 API 与节点间 WebSocket 目前仍**无内置鉴权**，且默认无 TLS。生产部署务必置于反向代理之后并启用 TLS + 访问控制，详见 [`docs/deployment.md`](docs/deployment.md)。
 
 ---
 
@@ -175,6 +175,7 @@ cargo run --release --bin nextim-peer
 | `data_dir` | 数据目录（SQLite + Tantivy 索引） | `./data` |
 | `display_name` | 节点显示名称 | `My Store` |
 | `proxy_store_address` | 代收 Store 地址（离线消息暂存，留空禁用） | `""` |
+| `api_token` | REST 写接口的 Bearer token（留空则启动自动生成并打印） | `""` |
 
 ### Peer（`nextim-peer.example.toml`）
 
@@ -347,7 +348,7 @@ cargo test -p nextim-tests
 
 ### 部署安全注意
 
-- Store/Peer 接口默认无鉴权——**生产环境必须**置于带 TLS 与访问控制的反向代理后。
+- Store REST 写接口需 Bearer token（`api_token`）；Peer 管理 API 与节点间 WebSocket 暂无鉴权——**生产环境必须**置于带 TLS 与访问控制的反向代理后。
 - 消息路由依赖联系人中显式保存的 `store_address`，请确认地址来源可信。
 - 详见 [`docs/deployment.md`](docs/deployment.md) 的安全配置章节。
 

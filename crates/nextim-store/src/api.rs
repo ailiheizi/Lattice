@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::Json,
+    http::{Request, StatusCode},
+    middleware::{self, Next},
+    response::{Json, Response},
     routing::{delete, get, post},
     Router,
 };
@@ -54,8 +55,45 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/keys/generate", post(generate_one_time_keys))
         .route("/devices", post(register_device))
         .route("/devices/:user_fingerprint", get(list_devices))
+        // 鉴权中间件：写操作（POST/DELETE）需 Bearer token，只读（GET）放行。
+        .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
         .layer(cors)
         .with_state(state)
+}
+
+/// 写操作鉴权：对 POST/DELETE 等修改性请求校验 `Authorization: Bearer <token>`。
+/// GET/HEAD/OPTIONS 等只读/预检请求放行（health、identity、消息读取、搜索等公开）。
+async fn auth_middleware(
+    State(state): State<Arc<AppState>>,
+    request: Request<axum::body::Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    use axum::http::Method;
+
+    let is_write = matches!(
+        *request.method(),
+        Method::POST | Method::PUT | Method::PATCH | Method::DELETE
+    );
+
+    if !is_write {
+        return Ok(next.run(request).await);
+    }
+
+    // 未配置 token 视为未启用鉴权（仅测试场景），放行以保持兼容。
+    if state.api_token.is_empty() {
+        return Ok(next.run(request).await);
+    }
+
+    let provided = request
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "));
+
+    match provided {
+        Some(token) if token == state.api_token => Ok(next.run(request).await),
+        _ => Err(StatusCode::UNAUTHORIZED),
+    }
 }
 
 pub async fn serve_api(
