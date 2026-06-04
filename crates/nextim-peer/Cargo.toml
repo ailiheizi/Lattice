@@ -14,7 +14,6 @@ anyhow.workspace = true
 prost.workspace = true
 futures-util = "0.3"
 tokio-tungstenite.workspace = true
-stun-coder = "2.0"
 rand.workspace = true
 thiserror.workspace = true
 toml = "0.8"
