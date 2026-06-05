@@ -2,7 +2,7 @@ use crate::error::Result;
 use nextim_proto::{
     group::{Room, RoomEvent},
     identity::{Contact, DeviceInfo, KeyBundle},
-    message::{Message, Reaction},
+    message::{Message, Reaction, ReadReceipt},
 };
 
 /// 时间范围查询
@@ -114,6 +114,16 @@ pub trait Storage: Send + Sync {
         &self,
         target_msg_id: &str,
     ) -> impl std::future::Future<Output = Result<Vec<Reaction>>> + Send;
+    /// 保存/更新已读回执(每个 room_id+reader_fingerprint 只保留最新一条)。
+    fn save_read_receipt(
+        &self,
+        receipt: &ReadReceipt,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    /// 查询某房间所有成员的已读回执。
+    fn get_read_receipts(
+        &self,
+        room_id: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<ReadReceipt>>> + Send;
 
     // === 联系人 ===
     fn save_contact(

@@ -416,6 +416,61 @@ async fn handle_frame(
             }))
         }
 
+        Some(frame::Body::ReadReceipt(ref receipt)) => {
+            // 验签:reader 必须证明是本人(防止伪造他人已读位置)。
+            if !receipt.signature.is_empty() {
+                let reader_key = state
+                    .storage
+                    .get_contact(&receipt.reader_fingerprint)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|c| c.identity)
+                    .map(|i| i.ed25519_public_key);
+                let ok = match reader_key {
+                    Some(key) => matches!(
+                        nextim_crypto::sign::verify_read_receipt(&key, receipt),
+                        Ok(true)
+                    ),
+                    None => false,
+                };
+                if !ok {
+                    tracing::warn!(
+                        "ReadReceipt from {} signature verification failed",
+                        receipt.reader_fingerprint
+                    );
+                    return Ok(Some(rejected_ack(frame.seq, &receipt.reader_fingerprint)));
+                }
+            } else if !state.allow_unsigned {
+                tracing::warn!(
+                    "Rejecting unsigned ReadReceipt from {} (allow_unsigned=false)",
+                    receipt.reader_fingerprint
+                );
+                return Ok(Some(rejected_ack(frame.seq, &receipt.reader_fingerprint)));
+            }
+
+            state
+                .storage
+                .save_read_receipt(receipt)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+            tracing::info!(
+                "Stored read receipt: {} read up to {} in {}",
+                receipt.reader_fingerprint,
+                receipt.up_to_msg_id,
+                receipt.room_id
+            );
+            Ok(Some(Frame {
+                seq: frame.seq,
+                r#type: FrameType::Ack as i32,
+                body: Some(frame::Body::Ack(MessageAck {
+                    msg_id: receipt.up_to_msg_id.clone(),
+                    status: AckStatus::Read as i32,
+                })),
+            }))
+        }
+
         Some(frame::Body::Ping(ping)) => Ok(Some(Frame {
             seq: frame.seq,
             r#type: FrameType::Pong as i32,
@@ -1574,5 +1629,61 @@ mod tests {
             "same reaction_id updated, not duplicated"
         );
         assert!(reactions[0].removed, "reaction marked removed");
+    }
+
+    #[tokio::test]
+    async fn read_receipt_is_stored_and_queryable() {
+        let state = test_state();
+        let sink = test_sender_sink().await;
+
+        let frame = Frame {
+            seq: 9,
+            r#type: FrameType::ReadReceipt as i32,
+            body: Some(frame::Body::ReadReceipt(
+                nextim_proto::message::ReadReceipt {
+                    room_id: "room-1".to_string(),
+                    reader_fingerprint: "bob".to_string(),
+                    up_to_msg_id: "m5".to_string(),
+                    timestamp: 400,
+                    signature: Vec::new(), // test_state allow_unsigned=true
+                },
+            )),
+        };
+        let resp = handle_frame(frame, &state, &sink)
+            .await
+            .expect("handle")
+            .expect("ack");
+        // 回执确认用 Read 状态
+        match resp.body {
+            Some(frame::Body::Ack(ack)) => {
+                assert_eq!(ack.status, AckStatus::Read as i32);
+                assert_eq!(ack.msg_id, "m5");
+            }
+            other => panic!("expected read ack, got {other:?}"),
+        }
+
+        let receipts = state.storage.get_read_receipts("room-1").await.unwrap();
+        assert_eq!(receipts.len(), 1);
+        assert_eq!(receipts[0].reader_fingerprint, "bob");
+        assert_eq!(receipts[0].up_to_msg_id, "m5");
+
+        // 同 reader 推进已读位置 → 幂等更新,不新增
+        let frame2 = Frame {
+            seq: 10,
+            r#type: FrameType::ReadReceipt as i32,
+            body: Some(frame::Body::ReadReceipt(
+                nextim_proto::message::ReadReceipt {
+                    room_id: "room-1".to_string(),
+                    reader_fingerprint: "bob".to_string(),
+                    up_to_msg_id: "m9".to_string(),
+                    timestamp: 500,
+                    signature: Vec::new(),
+                },
+            )),
+        };
+        handle_frame(frame2, &state, &sink).await.unwrap().unwrap();
+        let receipts = state.storage.get_read_receipts("room-1").await.unwrap();
+        assert_eq!(receipts.len(), 1, "same reader updated, not duplicated");
+        assert_eq!(receipts[0].up_to_msg_id, "m9");
     }
 }

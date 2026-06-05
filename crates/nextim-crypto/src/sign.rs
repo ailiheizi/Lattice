@@ -281,6 +281,51 @@ pub fn verify_reaction(
         .map_err(|_| SignVerifyError::SignatureVerificationFailed)?;
     Ok(true)
 }
+
+/// 计算 ReadReceipt 的签名哈希。覆盖 room_id ‖ reader_fingerprint ‖ up_to_msg_id,不含 timestamp。
+pub fn compute_read_receipt_hash(
+    receipt: &nextim_proto::message::ReadReceipt,
+) -> Result<Vec<u8>, SignVerifyError> {
+    let mut encoded = Vec::new();
+    append_length_prefixed(&mut encoded, receipt.room_id.as_bytes())?;
+    append_length_prefixed(&mut encoded, receipt.reader_fingerprint.as_bytes())?;
+    append_length_prefixed(&mut encoded, receipt.up_to_msg_id.as_bytes())?;
+    Ok(sha256(&encoded))
+}
+
+/// 为 ReadReceipt 生成签名。
+pub fn sign_read_receipt(
+    signing_key: &ed25519_dalek::SigningKey,
+    receipt: &nextim_proto::message::ReadReceipt,
+) -> Result<Vec<u8>, SignVerifyError> {
+    use ed25519_dalek::Signer;
+    let hash = compute_read_receipt_hash(receipt)?;
+    Ok(signing_key.sign(&hash).to_bytes().to_vec())
+}
+
+/// 验证 ReadReceipt 签名是否由 reader 公钥签发。
+pub fn verify_read_receipt(
+    reader_public_key: &[u8],
+    receipt: &nextim_proto::message::ReadReceipt,
+) -> Result<bool, SignVerifyError> {
+    let computed = compute_read_receipt_hash(receipt)?;
+    let verifying_key = VerifyingKey::from_bytes(
+        reader_public_key
+            .try_into()
+            .map_err(|_| SignVerifyError::InvalidPublicKey)?,
+    )
+    .map_err(|_| SignVerifyError::InvalidPublicKey)?;
+    let sig_bytes: [u8; 64] = receipt
+        .signature
+        .as_slice()
+        .try_into()
+        .map_err(|_| SignVerifyError::InvalidSignature)?;
+    let signature = Signature::from_bytes(&sig_bytes);
+    verifying_key
+        .verify(&computed, &signature)
+        .map_err(|_| SignVerifyError::SignatureVerificationFailed)?;
+    Ok(true)
+}
 pub fn verify_envelope(
     sender_public_key: &[u8],
     envelope: &Envelope,
@@ -719,5 +764,40 @@ mod tests {
         let mut r = make_signed_reaction(&key);
         r.removed = true; // 翻转 removed 不重签 → 失败(防止伪造取消)
         assert!(verify_reaction(key.verifying_key().as_bytes(), &r).is_err());
+    }
+
+    fn make_signed_receipt(key: &SigningKey) -> nextim_proto::message::ReadReceipt {
+        let mut r = nextim_proto::message::ReadReceipt {
+            room_id: "room-1".to_string(),
+            reader_fingerprint: "reader-fp".to_string(),
+            up_to_msg_id: "msg-5".to_string(),
+            timestamp: 400,
+            signature: Vec::new(),
+        };
+        r.signature = sign_read_receipt(key, &r).unwrap();
+        r
+    }
+
+    #[test]
+    fn test_verify_read_receipt_ok() {
+        let key = SigningKey::generate(&mut OsRng);
+        let r = make_signed_receipt(&key);
+        assert!(verify_read_receipt(key.verifying_key().as_bytes(), &r).unwrap());
+    }
+
+    #[test]
+    fn test_read_receipt_tampered_up_to_fails() {
+        let key = SigningKey::generate(&mut OsRng);
+        let mut r = make_signed_receipt(&key);
+        r.up_to_msg_id = "msg-99".to_string(); // 伪造读到更后 → 失败
+        assert!(verify_read_receipt(key.verifying_key().as_bytes(), &r).is_err());
+    }
+
+    #[test]
+    fn test_read_receipt_wrong_key_fails() {
+        let key = SigningKey::generate(&mut OsRng);
+        let other = SigningKey::generate(&mut OsRng);
+        let r = make_signed_receipt(&key);
+        assert!(verify_read_receipt(other.verifying_key().as_bytes(), &r).is_err());
     }
 }

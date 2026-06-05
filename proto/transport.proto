@@ -17,6 +17,7 @@ message Frame {
         nextim.group.RoomEvent room_event = 30;
         nextim.message.MessageOp message_op = 31;
         nextim.message.Reaction reaction = 32;
+        nextim.message.ReadReceipt read_receipt = 33;
         SyncRequest sync_request = 40;
         SyncResponse sync_response = 41;
         Ping ping = 50;
@@ -32,6 +33,7 @@ enum FrameType {
     ROOM_EVENT = 4;
     MESSAGE_OP = 9;
     REACTION = 10;
+    READ_RECEIPT = 11;
     SYNC_REQUEST = 5;
     SYNC_RESPONSE = 6;
     PING = 7;

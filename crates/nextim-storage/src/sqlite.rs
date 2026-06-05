@@ -8,7 +8,7 @@ use nextim_core::error::{NextImError, Result};
 use nextim_core::traits::storage::{Pagination, PendingMessage, Storage, TimeRange};
 use nextim_proto::group::{Room, RoomEvent};
 use nextim_proto::identity::{Contact, DeviceInfo, KeyBundle};
-use nextim_proto::message::{Message, Reaction};
+use nextim_proto::message::{Message, Reaction, ReadReceipt};
 
 pub struct SqliteStorage {
     conn: Mutex<Connection>,
@@ -94,6 +94,15 @@ impl SqliteStorage {
                 data BLOB NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_reactions_target ON reactions(target_msg_id);
+
+            CREATE TABLE IF NOT EXISTS read_receipts (
+                room_id TEXT NOT NULL,
+                reader_fingerprint TEXT NOT NULL,
+                up_to_msg_id TEXT NOT NULL,
+                data BLOB NOT NULL,
+                PRIMARY KEY (room_id, reader_fingerprint)
+            );
+            CREATE INDEX IF NOT EXISTS idx_read_receipts_room ON read_receipts(room_id);
 
             CREATE TABLE IF NOT EXISTS contacts (
                 fingerprint TEXT PRIMARY KEY,
@@ -576,6 +585,49 @@ impl Storage for SqliteStorage {
             );
         }
         Ok(reactions)
+    }
+
+    async fn save_read_receipt(&self, receipt: &ReadReceipt) -> Result<()> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let data = receipt.encode_to_vec();
+        conn.execute(
+            "INSERT OR REPLACE INTO read_receipts (room_id, reader_fingerprint, up_to_msg_id, data) VALUES (?1, ?2, ?3, ?4)",
+            params![
+                receipt.room_id,
+                receipt.reader_fingerprint,
+                receipt.up_to_msg_id,
+                data,
+            ],
+        )
+        .map_err(|e| NextImError::Storage(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn get_read_receipts(&self, room_id: &str) -> Result<Vec<ReadReceipt>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT data FROM read_receipts WHERE room_id = ?1 ORDER BY reader_fingerprint ASC",
+            )
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let rows = stmt
+            .query_map(params![room_id], |row| row.get::<_, Vec<u8>>(0))
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let mut receipts = Vec::new();
+        for row in rows {
+            let data = row.map_err(|e| NextImError::Storage(e.to_string()))?;
+            receipts.push(
+                ReadReceipt::decode(data.as_slice())
+                    .map_err(|e| NextImError::Serialization(e.to_string()))?,
+            );
+        }
+        Ok(receipts)
     }
 
     async fn save_contact(&self, contact: &Contact) -> Result<()> {

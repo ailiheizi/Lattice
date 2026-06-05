@@ -99,4 +99,15 @@ message Reaction {
     bytes signature = 8;
 }
 
+// 已读回执:reader 已读到 up_to_msg_id(含)为止的消息。
+// 每个 (room_id, reader_fingerprint) 只保留最新一条(按 up_to 推进)。
+// 签名绑定 (room_id ‖ reader_fingerprint ‖ up_to_msg_id)。
+message ReadReceipt {
+    string room_id = 1;
+    string reader_fingerprint = 2;
+    string up_to_msg_id = 3;   // 已读到的最后一条消息 ID
+    uint64 timestamp = 4;      // 声称时间(显示用,不进签名)
+    bytes signature = 5;
+}
+
 
