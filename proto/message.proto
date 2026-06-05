@@ -85,3 +85,18 @@ enum MessageOpType {
     EDIT = 1;     // 编辑
 }
 
+// 消息反应(emoji)。任何人可对任意消息加/取消反应,只要签名证明是 actor 本人。
+// 签名绑定 (reaction_id ‖ room_id ‖ target_msg_id ‖ actor_fingerprint ‖ emoji ‖ removed)。
+// removed=true 表示取消之前的反应(按 actor+target+emoji 幂等)。
+message Reaction {
+    string reaction_id = 1;
+    string room_id = 2;
+    string target_msg_id = 3;
+    string actor_fingerprint = 4;
+    string emoji = 5;
+    bool removed = 6;       // true=取消反应
+    uint64 timestamp = 7;   // 声称时间(显示用,不进签名)
+    bytes signature = 8;
+}
+
+

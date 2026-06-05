@@ -2,7 +2,7 @@ use crate::error::Result;
 use nextim_proto::{
     group::{Room, RoomEvent},
     identity::{Contact, DeviceInfo, KeyBundle},
-    message::Message,
+    message::{Message, Reaction},
 };
 
 /// 时间范围查询
@@ -104,6 +104,16 @@ pub trait Storage: Send + Sync {
         room_id: &str,
         since_received_ts: u64,
     ) -> impl std::future::Future<Output = Result<Vec<RoomEventRecord>>> + Send;
+    /// 保存/更新一条反应(按 reaction_id 幂等;removed=true 表示取消)。
+    fn save_reaction(
+        &self,
+        reaction: &Reaction,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    /// 查询某条消息的所有反应(含已取消的,调用方按 removed 过滤展示)。
+    fn get_reactions(
+        &self,
+        target_msg_id: &str,
+    ) -> impl std::future::Future<Output = Result<Vec<Reaction>>> + Send;
 
     // === 联系人 ===
     fn save_contact(

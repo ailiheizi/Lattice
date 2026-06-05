@@ -8,7 +8,7 @@ use nextim_core::error::{NextImError, Result};
 use nextim_core::traits::storage::{Pagination, PendingMessage, Storage, TimeRange};
 use nextim_proto::group::{Room, RoomEvent};
 use nextim_proto::identity::{Contact, DeviceInfo, KeyBundle};
-use nextim_proto::message::Message;
+use nextim_proto::message::{Message, Reaction};
 
 pub struct SqliteStorage {
     conn: Mutex<Connection>,
@@ -84,6 +84,16 @@ impl SqliteStorage {
                 data BLOB NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_room_events_room_ts ON room_events(room_id, timestamp);
+
+            CREATE TABLE IF NOT EXISTS reactions (
+                reaction_id TEXT PRIMARY KEY,
+                target_msg_id TEXT NOT NULL,
+                actor_fingerprint TEXT NOT NULL,
+                emoji TEXT NOT NULL,
+                removed INTEGER NOT NULL DEFAULT 0,
+                data BLOB NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_reactions_target ON reactions(target_msg_id);
 
             CREATE TABLE IF NOT EXISTS contacts (
                 fingerprint TEXT PRIMARY KEY,
@@ -523,6 +533,49 @@ impl Storage for SqliteStorage {
             });
         }
         Ok(records)
+    }
+
+    async fn save_reaction(&self, reaction: &Reaction) -> Result<()> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let data = reaction.encode_to_vec();
+        conn.execute(
+            "INSERT OR REPLACE INTO reactions (reaction_id, target_msg_id, actor_fingerprint, emoji, removed, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                reaction.reaction_id,
+                reaction.target_msg_id,
+                reaction.actor_fingerprint,
+                reaction.emoji,
+                reaction.removed as i64,
+                data,
+            ],
+        )
+        .map_err(|e| NextImError::Storage(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn get_reactions(&self, target_msg_id: &str) -> Result<Vec<Reaction>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let mut stmt = conn
+            .prepare("SELECT data FROM reactions WHERE target_msg_id = ?1 ORDER BY reaction_id ASC")
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let rows = stmt
+            .query_map(params![target_msg_id], |row| row.get::<_, Vec<u8>>(0))
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let mut reactions = Vec::new();
+        for row in rows {
+            let data = row.map_err(|e| NextImError::Storage(e.to_string()))?;
+            reactions.push(
+                Reaction::decode(data.as_slice())
+                    .map_err(|e| NextImError::Serialization(e.to_string()))?,
+            );
+        }
+        Ok(reactions)
     }
 
     async fn save_contact(&self, contact: &Contact) -> Result<()> {

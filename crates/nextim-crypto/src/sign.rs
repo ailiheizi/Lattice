@@ -232,6 +232,55 @@ pub fn verify_message_op(
         .map_err(|_| SignVerifyError::SignatureVerificationFailed)?;
     Ok(true)
 }
+
+/// 计算 Reaction 的签名哈希。
+/// 覆盖 reaction_id ‖ room_id ‖ target_msg_id ‖ actor_fingerprint ‖ emoji ‖ removed,不含 timestamp。
+pub fn compute_reaction_hash(
+    reaction: &nextim_proto::message::Reaction,
+) -> Result<Vec<u8>, SignVerifyError> {
+    let mut encoded = Vec::new();
+    append_length_prefixed(&mut encoded, reaction.reaction_id.as_bytes())?;
+    append_length_prefixed(&mut encoded, reaction.room_id.as_bytes())?;
+    append_length_prefixed(&mut encoded, reaction.target_msg_id.as_bytes())?;
+    append_length_prefixed(&mut encoded, reaction.actor_fingerprint.as_bytes())?;
+    append_length_prefixed(&mut encoded, reaction.emoji.as_bytes())?;
+    encoded.push(reaction.removed as u8);
+    Ok(sha256(&encoded))
+}
+
+/// 为 Reaction 生成签名。
+pub fn sign_reaction(
+    signing_key: &ed25519_dalek::SigningKey,
+    reaction: &nextim_proto::message::Reaction,
+) -> Result<Vec<u8>, SignVerifyError> {
+    use ed25519_dalek::Signer;
+    let hash = compute_reaction_hash(reaction)?;
+    Ok(signing_key.sign(&hash).to_bytes().to_vec())
+}
+
+/// 验证 Reaction 签名是否由 actor 公钥签发。
+pub fn verify_reaction(
+    actor_public_key: &[u8],
+    reaction: &nextim_proto::message::Reaction,
+) -> Result<bool, SignVerifyError> {
+    let computed = compute_reaction_hash(reaction)?;
+    let verifying_key = VerifyingKey::from_bytes(
+        actor_public_key
+            .try_into()
+            .map_err(|_| SignVerifyError::InvalidPublicKey)?,
+    )
+    .map_err(|_| SignVerifyError::InvalidPublicKey)?;
+    let sig_bytes: [u8; 64] = reaction
+        .signature
+        .as_slice()
+        .try_into()
+        .map_err(|_| SignVerifyError::InvalidSignature)?;
+    let signature = Signature::from_bytes(&sig_bytes);
+    verifying_key
+        .verify(&computed, &signature)
+        .map_err(|_| SignVerifyError::SignatureVerificationFailed)?;
+    Ok(true)
+}
 pub fn verify_envelope(
     sender_public_key: &[u8],
     envelope: &Envelope,
@@ -632,5 +681,43 @@ mod tests {
         let other = SigningKey::generate(&mut OsRng);
         let op = make_signed_message_op(&key);
         assert!(verify_message_op(other.verifying_key().as_bytes(), &op).is_err());
+    }
+
+    fn make_signed_reaction(key: &SigningKey) -> nextim_proto::message::Reaction {
+        let mut r = nextim_proto::message::Reaction {
+            reaction_id: "react-1".to_string(),
+            room_id: "room-1".to_string(),
+            target_msg_id: "msg-1".to_string(),
+            actor_fingerprint: "actor-fp".to_string(),
+            emoji: "👍".to_string(),
+            removed: false,
+            timestamp: 300,
+            signature: Vec::new(),
+        };
+        r.signature = sign_reaction(key, &r).unwrap();
+        r
+    }
+
+    #[test]
+    fn test_verify_reaction_ok() {
+        let key = SigningKey::generate(&mut OsRng);
+        let r = make_signed_reaction(&key);
+        assert!(verify_reaction(key.verifying_key().as_bytes(), &r).unwrap());
+    }
+
+    #[test]
+    fn test_reaction_tampered_emoji_fails() {
+        let key = SigningKey::generate(&mut OsRng);
+        let mut r = make_signed_reaction(&key);
+        r.emoji = "👎".to_string(); // 改 emoji 不重签 → 失败
+        assert!(verify_reaction(key.verifying_key().as_bytes(), &r).is_err());
+    }
+
+    #[test]
+    fn test_reaction_tampered_removed_fails() {
+        let key = SigningKey::generate(&mut OsRng);
+        let mut r = make_signed_reaction(&key);
+        r.removed = true; // 翻转 removed 不重签 → 失败(防止伪造取消)
+        assert!(verify_reaction(key.verifying_key().as_bytes(), &r).is_err());
     }
 }

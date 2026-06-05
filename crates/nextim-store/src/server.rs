@@ -358,6 +358,64 @@ async fn handle_frame(
             }))
         }
 
+        Some(frame::Body::Reaction(ref reaction)) => {
+            // 验签:任何人可对任意消息加/取消反应,但必须证明是 actor 本人。
+            if !reaction.signature.is_empty() {
+                let actor_key = state
+                    .storage
+                    .get_contact(&reaction.actor_fingerprint)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|c| c.identity)
+                    .map(|i| i.ed25519_public_key);
+                let ok = match actor_key {
+                    Some(key) => {
+                        matches!(
+                            nextim_crypto::sign::verify_reaction(&key, reaction),
+                            Ok(true)
+                        )
+                    }
+                    None => false,
+                };
+                if !ok {
+                    tracing::warn!(
+                        "Reaction {} signature verification failed",
+                        reaction.reaction_id
+                    );
+                    return Ok(Some(rejected_ack(frame.seq, &reaction.reaction_id)));
+                }
+            } else if !state.allow_unsigned {
+                tracing::warn!(
+                    "Rejecting unsigned Reaction {} (allow_unsigned=false)",
+                    reaction.reaction_id
+                );
+                return Ok(Some(rejected_ack(frame.seq, &reaction.reaction_id)));
+            }
+
+            state
+                .storage
+                .save_reaction(reaction)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+            tracing::info!(
+                "Stored reaction {} ({}{}) on {}",
+                reaction.reaction_id,
+                if reaction.removed { "removed " } else { "" },
+                reaction.emoji,
+                reaction.target_msg_id
+            );
+            Ok(Some(Frame {
+                seq: frame.seq,
+                r#type: FrameType::Ack as i32,
+                body: Some(frame::Body::Ack(MessageAck {
+                    msg_id: reaction.reaction_id.clone(),
+                    status: AckStatus::Received as i32,
+                })),
+            }))
+        }
+
         Some(frame::Body::Ping(ping)) => Ok(Some(Frame {
             seq: frame.seq,
             r#type: FrameType::Pong as i32,
@@ -1462,5 +1520,59 @@ mod tests {
         let m = state.storage.get_message("m3").await.unwrap().unwrap();
         assert!(m.edited);
         assert_eq!(m.content.unwrap().text, "new text");
+    }
+
+    fn reaction_frame(target: &str, actor: &str, emoji: &str, removed: bool) -> Frame {
+        Frame {
+            seq: 8,
+            r#type: FrameType::Reaction as i32,
+            body: Some(frame::Body::Reaction(nextim_proto::message::Reaction {
+                reaction_id: format!("react-{actor}-{emoji}"),
+                room_id: "room-1".to_string(),
+                target_msg_id: target.to_string(),
+                actor_fingerprint: actor.to_string(),
+                emoji: emoji.to_string(),
+                removed,
+                timestamp: 300,
+                signature: Vec::new(), // test_state allow_unsigned=true
+            })),
+        }
+    }
+
+    #[tokio::test]
+    async fn reaction_add_and_remove_are_stored() {
+        let state = test_state();
+        let sink = test_sender_sink().await;
+        state
+            .storage
+            .save_message(&store_test_message("rm1", "alice", "hi"))
+            .await
+            .unwrap();
+
+        // bob 对 alice 的消息加 👍
+        let resp = handle_frame(reaction_frame("rm1", "bob", "👍", false), &state, &sink)
+            .await
+            .expect("handle")
+            .expect("ack");
+        assert_eq!(resp.r#type, FrameType::Ack as i32);
+
+        let reactions = state.storage.get_reactions("rm1").await.unwrap();
+        assert_eq!(reactions.len(), 1);
+        assert_eq!(reactions[0].emoji, "👍");
+        assert_eq!(reactions[0].actor_fingerprint, "bob");
+        assert!(!reactions[0].removed);
+
+        // bob 取消(同 reaction_id 幂等更新为 removed=true)
+        handle_frame(reaction_frame("rm1", "bob", "👍", true), &state, &sink)
+            .await
+            .expect("handle")
+            .expect("ack");
+        let reactions = state.storage.get_reactions("rm1").await.unwrap();
+        assert_eq!(
+            reactions.len(),
+            1,
+            "same reaction_id updated, not duplicated"
+        );
+        assert!(reactions[0].removed, "reaction marked removed");
     }
 }
