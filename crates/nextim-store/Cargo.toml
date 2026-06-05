@@ -9,6 +9,7 @@ nextim-core = { path = "../nextim-core" }
 nextim-crypto = { path = "../nextim-crypto" }
 nextim-transport = { path = "../nextim-transport" }
 nextim-storage = { path = "../nextim-storage" }
+nextim-discovery = { path = "../nextim-discovery" }
 tokio.workspace = true
 axum.workspace = true
 tracing.workspace = true

@@ -24,3 +24,16 @@ api_token = ""
 # 是否接受无签名的消息/房间事件。默认 false（强制验签，推荐）。
 # 仅在调试或旧协议迁移时显式设为 true，生产务必保持 false。
 allow_unsigned = false
+
+# === DHT 节点发现（可选）===
+# 是否启用 DHT。默认 false。联系人 store_address 仍是消息路由的主路径，
+# DHT 仅在某联系人的 store_address 缺失时作为 fallback 解析地址。
+enable_dht = false
+
+# DHT WebSocket 监听地址（enable_dht 时生效）
+dht_addr = "0.0.0.0:9102"
+
+# DHT 引导节点地址列表（ws:// URL）：
+# 启动时向它们发布自己的签名身份卡片；转发缺地址时向它们查询。
+# 例：dht_bootstrap = ["ws://bootstrap1.example.com:9102", "ws://bootstrap2.example.com:9102"]
+dht_bootstrap = []

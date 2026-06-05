@@ -1536,14 +1536,18 @@ dependencies = [
 name = "nextim-discovery"
 version = "0.1.0"
 dependencies = [
+ "futures-util",
  "hex",
  "nextim-core",
+ "nextim-crypto",
  "nextim-proto",
+ "prost",
  "serde",
  "serde_json",
  "sha2",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-tungstenite",
  "tracing",
 ]
 
@@ -1626,6 +1630,7 @@ dependencies = [
  "futures-util",
  "nextim-core",
  "nextim-crypto",
+ "nextim-discovery",
  "nextim-proto",
  "nextim-storage",
  "nextim-transport",

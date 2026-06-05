@@ -39,6 +39,8 @@ fn test_state() -> Arc<AppState> {
         ws_addr: "127.0.0.1:0".to_string(),
         api_token: String::new(),
         allow_unsigned: true,
+        enable_dht: false,
+        dht_bootstrap: Vec::new(),
     })
 }
 
@@ -559,6 +561,8 @@ async fn start_store_api_with_token(token: &str) -> (String, tokio::task::JoinHa
         ws_addr: "127.0.0.1:0".to_string(),
         api_token: token.to_string(),
         allow_unsigned: true,
+        enable_dht: false,
+        dht_bootstrap: Vec::new(),
     });
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

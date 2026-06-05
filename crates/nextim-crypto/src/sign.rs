@@ -1,7 +1,7 @@
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use sha2::{Digest, Sha256};
 
-use nextim_proto::message::Envelope;
+use nextim_proto::{discovery::IdentityCard, message::Envelope};
 
 /// 对数据计算 SHA-256 哈希
 pub fn sha256(data: &[u8]) -> Vec<u8> {
@@ -48,6 +48,81 @@ fn append_length_prefixed(buf: &mut Vec<u8>, bytes: &[u8]) -> Result<(), SignVer
     buf.extend_from_slice(&len.to_be_bytes());
     buf.extend_from_slice(bytes);
     Ok(())
+}
+
+/// 计算 IdentityCard 的签名哈希。
+///
+/// 字节布局为：
+/// - `u32::to_be_bytes(fingerprint.len())` + `fingerprint.as_bytes()`
+/// - `u32::to_be_bytes(ed25519_public_key.len())` + `ed25519_public_key`
+/// - `u32::to_be_bytes(curve25519_public_key.len())` + `curve25519_public_key`
+/// - `u32::to_be_bytes(store_address.len())` + `store_address.as_bytes()`
+/// - `u32::to_be_bytes(proxy_store_address.len())` + `proxy_store_address.as_bytes()`
+///
+/// `display_name` 与 `signature` 均不参与签名，避免展示字段变更破坏身份绑定。
+pub fn compute_identity_card_hash(card: &IdentityCard) -> Vec<u8> {
+    let mut encoded = Vec::with_capacity(
+        card.fingerprint.len()
+            + card.ed25519_public_key.len()
+            + card.curve25519_public_key.len()
+            + card.store_address.len()
+            + card.proxy_store_address.len()
+            + 20,
+    );
+
+    append_length_prefixed(&mut encoded, card.fingerprint.as_bytes())
+        .expect("identity-card fingerprint length exceeds u32");
+    append_length_prefixed(&mut encoded, &card.ed25519_public_key)
+        .expect("identity-card ed25519_public_key length exceeds u32");
+    append_length_prefixed(&mut encoded, &card.curve25519_public_key)
+        .expect("identity-card curve25519_public_key length exceeds u32");
+    append_length_prefixed(&mut encoded, card.store_address.as_bytes())
+        .expect("identity-card store_address length exceeds u32");
+    append_length_prefixed(&mut encoded, card.proxy_store_address.as_bytes())
+        .expect("identity-card proxy_store_address length exceeds u32");
+
+    sha256(&encoded)
+}
+
+/// 用身份主私钥对 IdentityCard 的绑定字段签名。
+pub fn sign_identity_card(signing_key: &ed25519_dalek::SigningKey, card: &IdentityCard) -> Vec<u8> {
+    use ed25519_dalek::Signer;
+
+    let card_hash = compute_identity_card_hash(card);
+    let signature = signing_key.sign(&card_hash);
+    signature.to_bytes().to_vec()
+}
+
+/// 自洽验证身份卡片：
+/// 1. `fingerprint == SHA256(ed25519_public_key)`
+/// 2. `signature` 对签名哈希有效
+pub fn verify_identity_card(card: &IdentityCard) -> Result<bool, SignVerifyError> {
+    let computed_fingerprint = crate::identity::compute_fingerprint(&card.ed25519_public_key);
+    if computed_fingerprint != card.fingerprint {
+        return Err(SignVerifyError::FingerprintMismatch);
+    }
+
+    let verifying_key = VerifyingKey::from_bytes(
+        card.ed25519_public_key
+            .as_slice()
+            .try_into()
+            .map_err(|_| SignVerifyError::InvalidPublicKey)?,
+    )
+    .map_err(|_| SignVerifyError::InvalidPublicKey)?;
+
+    let sig_bytes: [u8; 64] = card
+        .signature
+        .as_slice()
+        .try_into()
+        .map_err(|_| SignVerifyError::InvalidSignature)?;
+    let signature = Signature::from_bytes(&sig_bytes);
+    let card_hash = compute_identity_card_hash(card);
+
+    verifying_key
+        .verify(&card_hash, &signature)
+        .map_err(|_| SignVerifyError::SignatureVerificationFailed)?;
+
+    Ok(true)
 }
 
 /// 计算 RoomEvent 的 DAG 哈希。
@@ -193,6 +268,9 @@ pub enum SignVerifyError {
     #[error("payload hash mismatch")]
     HashMismatch,
 
+    #[error("identity fingerprint mismatch")]
+    FingerprintMismatch,
+
     #[error("empty payload")]
     EmptyPayload,
 
@@ -206,6 +284,7 @@ pub enum SignVerifyError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::identity::compute_fingerprint;
     use ed25519_dalek::SigningKey;
     use nextim_proto::message::{envelope::Payload, MessageContent, MessageType, PlainPayload};
     use rand::rngs::OsRng;
@@ -237,6 +316,79 @@ mod tests {
         envelope.signature = sig;
         envelope.payload_hash = hash;
         envelope
+    }
+
+    fn make_identity_card(signing_key: &SigningKey) -> IdentityCard {
+        let verifying_key = signing_key.verifying_key();
+        let mut card = IdentityCard {
+            fingerprint: compute_fingerprint(verifying_key.as_bytes()),
+            display_name: "Alice".to_string(),
+            ed25519_public_key: verifying_key.as_bytes().to_vec(),
+            curve25519_public_key: [7u8; 32].to_vec(),
+            store_address: "ws://127.0.0.1:9100".to_string(),
+            proxy_store_address: "ws://127.0.0.1:9200".to_string(),
+            signature: Vec::new(),
+        };
+        card.signature = sign_identity_card(signing_key, &card);
+        card
+    }
+
+    #[test]
+    fn test_sign_and_verify_identity_card() {
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let card = make_identity_card(&signing_key);
+
+        assert!(verify_identity_card(&card).unwrap());
+    }
+
+    #[test]
+    fn test_identity_card_tampered_store_address_fails() {
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let mut card = make_identity_card(&signing_key);
+        card.store_address = "ws://127.0.0.1:9999".to_string();
+
+        assert!(matches!(
+            verify_identity_card(&card),
+            Err(SignVerifyError::SignatureVerificationFailed)
+        ));
+    }
+
+    #[test]
+    fn test_identity_card_tampered_fingerprint_fails() {
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let mut card = make_identity_card(&signing_key);
+        card.fingerprint.push('x');
+
+        assert!(matches!(
+            verify_identity_card(&card),
+            Err(SignVerifyError::FingerprintMismatch)
+        ));
+    }
+
+    #[test]
+    fn test_identity_card_tampered_public_key_fails() {
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let mut card = make_identity_card(&signing_key);
+        let forged_key = SigningKey::generate(&mut OsRng);
+        card.ed25519_public_key = forged_key.verifying_key().as_bytes().to_vec();
+
+        assert!(matches!(
+            verify_identity_card(&card),
+            Err(SignVerifyError::FingerprintMismatch)
+        ));
+    }
+
+    #[test]
+    fn test_identity_card_forged_signature_fails() {
+        let signing_key = SigningKey::generate(&mut OsRng);
+        let attacker = SigningKey::generate(&mut OsRng);
+        let mut card = make_identity_card(&signing_key);
+        card.signature = sign_identity_card(&attacker, &card);
+
+        assert!(matches!(
+            verify_identity_card(&card),
+            Err(SignVerifyError::SignatureVerificationFailed)
+        ));
     }
 
     #[test]

@@ -13,3 +13,7 @@ pub mod group {
 pub mod transport {
     include!(concat!(env!("OUT_DIR"), "/nextim.transport.rs"));
 }
+
+pub mod discovery {
+    include!(concat!(env!("OUT_DIR"), "/nextim.discovery.rs"));
+}

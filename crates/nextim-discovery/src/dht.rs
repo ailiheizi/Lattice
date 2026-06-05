@@ -3,6 +3,7 @@
 //! 简化版：不实现完整 Kademlia 协议，只实现核心的 k-bucket 路由表和 key-value 存储。
 //! 足够用于节点发现场景。
 
+use nextim_proto::discovery::IdentityCard;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
@@ -189,10 +190,10 @@ impl RoutingTable {
     }
 }
 
-/// DHT 存储 — key-value 存储（公钥指纹 → Store 地址）
+/// DHT 存储 — key-value 存储（公钥指纹 → IdentityCard）
 pub struct DhtStore {
     routing_table: RoutingTable,
-    store: HashMap<String, String>, // fingerprint → ws address
+    store: HashMap<String, IdentityCard>,
 }
 
 impl DhtStore {
@@ -203,15 +204,20 @@ impl DhtStore {
         }
     }
 
-    /// 发布自己的地址
-    pub fn publish(&mut self, fingerprint: &str, address: &str) {
-        self.store
-            .insert(fingerprint.to_string(), address.to_string());
+    /// 发布自己的身份卡片
+    pub fn publish(&mut self, card: IdentityCard) {
+        self.store.insert(card.fingerprint.clone(), card);
     }
 
-    /// 查找地址
-    pub fn lookup(&self, fingerprint: &str) -> Option<&String> {
+    /// 查找身份卡片
+    pub fn lookup(&self, fingerprint: &str) -> Option<&IdentityCard> {
         self.store.get(fingerprint)
+    }
+
+    /// 向后兼容：读取已发布的主 store 地址
+    pub fn lookup_address(&self, fingerprint: &str) -> Option<&str> {
+        self.lookup(fingerprint)
+            .map(|card| card.store_address.as_str())
     }
 
     /// 移除发布
@@ -260,6 +266,18 @@ mod tests {
             id: NodeId::from_bytes(id),
             address: addr.to_string(),
             last_seen: now_ms(),
+        }
+    }
+
+    fn make_card(fingerprint: &str, store_address: &str) -> IdentityCard {
+        IdentityCard {
+            fingerprint: fingerprint.to_string(),
+            display_name: "Alice".to_string(),
+            ed25519_public_key: vec![1; 32],
+            curve25519_public_key: vec![2; 32],
+            store_address: store_address.to_string(),
+            proxy_store_address: "ws://127.0.0.1:9200".to_string(),
+            signature: vec![3; 64],
         }
     }
 
@@ -359,12 +377,14 @@ mod tests {
     fn test_dht_store_publish_lookup() {
         let local = NodeId::from_data(b"my-node");
         let mut dht = DhtStore::new(local, 20);
+        let card = make_card("abc123", "ws://127.0.0.1:9100");
 
-        dht.publish("abc123", "ws://127.0.0.1:9100");
+        dht.publish(card.clone());
         assert_eq!(
-            dht.lookup("abc123"),
-            Some(&"ws://127.0.0.1:9100".to_string())
+            dht.lookup("abc123").unwrap().store_address,
+            card.store_address
         );
+        assert_eq!(dht.lookup_address("abc123"), Some("ws://127.0.0.1:9100"));
         assert_eq!(dht.lookup("nonexistent"), None);
         assert_eq!(dht.record_count(), 1);
 

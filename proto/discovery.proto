@@ -1,0 +1,51 @@
+syntax = "proto3";
+package nextim.discovery;
+
+// DHT 节点发现协议（WebSocket 传输）。
+// 约束：联系人 store_address 为主路径，DHT 仅作可验证的 fallback。
+
+// 签名的身份卡片：fingerprint → store 地址的可验证映射。
+// signature = 主私钥对 (fingerprint ‖ ed25519_public_key ‖ curve25519_public_key ‖ store_address) 的签名。
+// lookup 方必须验签 + 校验 fingerprint == SHA256(ed25519_public_key) 的十六进制。
+message IdentityCard {
+    string fingerprint = 1;
+    string display_name = 2;
+    bytes ed25519_public_key = 3;
+    bytes curve25519_public_key = 4;
+    string store_address = 5;
+    string proxy_store_address = 6;
+    bytes signature = 7;
+}
+
+message DhtEnvelope {
+    oneof body {
+        Publish publish = 10;
+        Lookup lookup = 11;
+        LookupResult lookup_result = 12;
+        DhtPing ping = 20;
+        DhtPong pong = 21;
+    }
+}
+
+// 节点向引导节点发布自己的（已签名）身份卡片。
+message Publish {
+    IdentityCard card = 1;
+}
+
+// 按 fingerprint 查询身份卡片。
+message Lookup {
+    string fingerprint = 1;
+}
+
+// 查询结果；未命中时 card 为空。
+message LookupResult {
+    optional IdentityCard card = 1;
+}
+
+message DhtPing {
+    uint64 timestamp = 1;
+}
+
+message DhtPong {
+    uint64 timestamp = 1;
+}

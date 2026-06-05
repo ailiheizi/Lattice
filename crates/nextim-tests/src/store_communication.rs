@@ -47,6 +47,8 @@ fn test_state(data_dir: PathBuf) -> Arc<AppState> {
         ws_addr: "127.0.0.1:0".to_string(),
         api_token: String::new(),
         allow_unsigned: true,
+        enable_dht: false,
+        dht_bootstrap: Vec::new(),
     })
 }
 

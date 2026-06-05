@@ -45,6 +45,20 @@ pub struct StoreConfig {
     /// 仅调试或旧协议迁移时显式开启，生产务必保持 false。
     #[serde(default)]
     pub allow_unsigned: bool,
+    /// 是否启用 DHT 节点发现。默认 false。开启时联系人 store_address 仍是主路径，
+    /// DHT 仅在 store_address 缺失时作 fallback。
+    #[serde(default)]
+    pub enable_dht: bool,
+    /// DHT WebSocket 监听地址（enable_dht 时生效）。
+    #[serde(default = "default_dht_addr")]
+    pub dht_addr: String,
+    /// DHT 引导节点地址列表：启动时向它们发布自己的身份卡片、查询时向它们 lookup。
+    #[serde(default)]
+    pub dht_bootstrap: Vec<String>,
+}
+
+fn default_dht_addr() -> String {
+    "127.0.0.1:9102".to_string()
 }
 
 fn default_ws_addr() -> String {
@@ -67,6 +81,9 @@ impl Default for StoreConfig {
             display_name: String::new(),
             api_token: String::new(),
             allow_unsigned: false,
+            enable_dht: false,
+            dht_addr: default_dht_addr(),
+            dht_bootstrap: Vec::new(),
         }
     }
 }
@@ -93,6 +110,10 @@ pub struct AppState {
     pub api_token: String,
     /// 是否接受无签名消息/房间事件。默认 false（强制验签）。
     pub allow_unsigned: bool,
+    /// 是否启用 DHT fallback（store_address 缺失时才查 DHT）。
+    pub enable_dht: bool,
+    /// DHT 引导节点地址，转发缺地址时向它们 lookup。
+    pub dht_bootstrap: Vec<String>,
 }
 
 pub async fn run() -> Result<()> {
@@ -192,7 +213,61 @@ pub async fn run() -> Result<()> {
         olm_account: Mutex::new(olm_account),
         api_token,
         allow_unsigned: config.allow_unsigned,
+        enable_dht: config.enable_dht,
+        dht_bootstrap: config.dht_bootstrap.clone(),
     });
+
+    // DHT 节点发现（可选）：启动本地 discovery 服务，并向引导节点发布自己的签名身份卡片。
+    // 联系人 store_address 仍是主路径，DHT 仅作 fallback（见 server.rs try_forward_message）。
+    if config.enable_dht {
+        use nextim_proto::discovery::IdentityCard;
+        let mut card = IdentityCard {
+            fingerprint: fingerprint.clone(),
+            display_name: display_name.clone(),
+            ed25519_public_key: state.identity.verifying_key().as_bytes().to_vec(),
+            curve25519_public_key: state.identity.encryption_public_key().as_bytes().to_vec(),
+            store_address: config.ws_addr.clone(),
+            proxy_store_address: config.proxy_store_address.clone(),
+            signature: Vec::new(),
+        };
+        let signing = ed25519_dalek::SigningKey::from_bytes(&state.identity.signing_key_bytes());
+        card.signature = nextim_crypto::sign::sign_identity_card(&signing, &card);
+
+        // 启动本地 DHT 服务
+        let dht_store = std::sync::Arc::new(tokio::sync::Mutex::new(
+            nextim_discovery::dht::DhtStore::new(
+                nextim_discovery::dht::NodeId::from_data(fingerprint.as_bytes()),
+                20,
+            ),
+        ));
+        let dht_addr = config.dht_addr.clone();
+        let dht_store_server = dht_store.clone();
+        tokio::spawn(async move {
+            if let Err(e) = nextim_discovery::service::run_server(&dht_addr, dht_store_server).await
+            {
+                tracing::warn!("DHT server exited: {e}");
+            }
+        });
+
+        // 向引导节点发布自己
+        for bootstrap in &config.dht_bootstrap {
+            let bootstrap = bootstrap.clone();
+            let card = card.clone();
+            tokio::spawn(async move {
+                match nextim_discovery::service::publish_to(&bootstrap, &card).await {
+                    Ok(()) => {
+                        tracing::info!("Published identity card to DHT bootstrap {bootstrap}")
+                    }
+                    Err(e) => tracing::warn!("Failed to publish to DHT bootstrap {bootstrap}: {e}"),
+                }
+            });
+        }
+        tracing::info!(
+            "  DHT:         ws://{} (bootstrap: {:?})",
+            config.dht_addr,
+            config.dht_bootstrap
+        );
+    }
 
     tracing::info!("NextIM Store starting...");
     tracing::info!("  Fingerprint: {fingerprint}");

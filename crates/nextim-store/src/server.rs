@@ -648,7 +648,39 @@ async fn try_forward_message(
         .map_err(|e| anyhow::anyhow!("lookup recipient contact {recipient_fingerprint}: {e}"))?
         .ok_or_else(|| anyhow::anyhow!("recipient contact not found: {recipient_fingerprint}"))?;
 
-    let addresses = forwarding_addresses(&contact);
+    let mut addresses = forwarding_addresses(&contact);
+
+    // DHT fallback：联系人 store_address 为主路径；仅当其缺失且启用 DHT 时，
+    // 才向引导节点 lookup，并对返回的身份卡片验签后使用其地址（防伪造地址劫持）。
+    if addresses.is_empty() && state.enable_dht {
+        for bootstrap in &state.dht_bootstrap {
+            match nextim_discovery::service::lookup_from(bootstrap, &recipient_fingerprint).await {
+                Ok(Some(card)) => match nextim_crypto::sign::verify_identity_card(&card) {
+                    Ok(true) if !card.store_address.is_empty() => {
+                        tracing::info!(
+                            "DHT fallback resolved {} -> {} (via bootstrap {})",
+                            recipient_fingerprint,
+                            card.store_address,
+                            bootstrap
+                        );
+                        addresses.push(card.store_address);
+                        if !card.proxy_store_address.is_empty() {
+                            addresses.push(card.proxy_store_address);
+                        }
+                        break;
+                    }
+                    _ => tracing::warn!(
+                        "DHT card for {} from {} failed verification; ignored",
+                        recipient_fingerprint,
+                        bootstrap
+                    ),
+                },
+                Ok(None) => {}
+                Err(e) => tracing::warn!("DHT lookup via {bootstrap} failed: {e}"),
+            }
+        }
+    }
+
     if addresses.is_empty() {
         return Err(anyhow::anyhow!(
             "recipient {recipient_fingerprint} has no store or proxy address"
@@ -794,6 +826,8 @@ mod tests {
             ws_addr: "127.0.0.1:0".to_string(),
             api_token: String::new(),
             allow_unsigned: true,
+            enable_dht: false,
+            dht_bootstrap: Vec::new(),
         })
     }
 
@@ -986,6 +1020,85 @@ mod tests {
             .expect_err("forward should time out without ACK");
 
         assert!(error.to_string().contains("timed out waiting for ACK"));
+    }
+
+    #[tokio::test]
+    async fn try_forward_message_uses_dht_fallback_when_contact_has_no_address() {
+        // 接收方真实地址（ACK store）
+        let (recipient_store_addr, received) = spawn_ack_store().await;
+
+        // 接收方身份与签名的 DHT 身份卡片
+        let recipient_kp = MasterKeyPair::generate();
+        let recipient_fp = recipient_kp.fingerprint();
+        let mut card = nextim_proto::discovery::IdentityCard {
+            fingerprint: recipient_fp.clone(),
+            display_name: "Recipient".to_string(),
+            ed25519_public_key: recipient_kp.verifying_key().as_bytes().to_vec(),
+            curve25519_public_key: recipient_kp.encryption_public_key().as_bytes().to_vec(),
+            store_address: recipient_store_addr.clone(),
+            proxy_store_address: String::new(),
+            signature: Vec::new(),
+        };
+        let signing = ed25519_dalek::SigningKey::from_bytes(&recipient_kp.signing_key_bytes());
+        card.signature = nextim_crypto::sign::sign_identity_card(&signing, &card);
+
+        // 起 DHT bootstrap 节点并发布接收方卡片
+        let dht_store = Arc::new(Mutex::new(nextim_discovery::dht::DhtStore::new(
+            nextim_discovery::dht::NodeId::from_data(b"bootstrap"),
+            20,
+        )));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let dht_addr = format!("ws://{}", listener.local_addr().unwrap());
+        drop(listener);
+        let dht_addr_for_server = dht_addr.trim_start_matches("ws://").to_string();
+        let store_for_server = dht_store.clone();
+        tokio::spawn(async move {
+            let _ =
+                nextim_discovery::service::run_server(&dht_addr_for_server, store_for_server).await;
+        });
+        // 等服务就绪并发布
+        for _ in 0..20 {
+            if nextim_discovery::service::publish_to(&dht_addr, &card)
+                .await
+                .is_ok()
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+
+        // 启用 DHT 的 store state；接收方联系人存在但无地址 → 触发 DHT fallback
+        let state = Arc::new(AppState {
+            storage: SqliteStorage::in_memory().expect("storage"),
+            search: TantivySearch::in_memory().expect("search"),
+            online: Arc::new(RwLock::new(HashMap::new())),
+            outbound: Arc::new(RwLock::new(HashMap::new())),
+            identity: MasterKeyPair::generate(),
+            olm_account: Mutex::new(OlmAccount::new()),
+            fingerprint: "store-fp".to_string(),
+            display_name: "Store".to_string(),
+            ws_addr: "127.0.0.1:0".to_string(),
+            api_token: String::new(),
+            allow_unsigned: true,
+            enable_dht: true,
+            dht_bootstrap: vec![dht_addr.clone()],
+        });
+        state
+            .storage
+            .save_contact(&test_contact(&recipient_fp, "", ""))
+            .await
+            .expect("save contact without address");
+
+        let frame = test_frame(&recipient_fp);
+        try_forward_message(state, recipient_fp.clone(), frame.encode_to_vec())
+            .await
+            .expect("forward via DHT-resolved address");
+
+        let forwarded = tokio::time::timeout(Duration::from_secs(2), received)
+            .await
+            .expect("forward timeout")
+            .expect("recipient store received frame");
+        assert_eq!(forwarded, frame.encode_to_vec());
     }
 
     #[tokio::test]

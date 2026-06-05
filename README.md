@@ -4,7 +4,7 @@
 
 NextIM 是一个 Rust workspace，包含 10 个 crate，覆盖协议、加密、存储、传输、节点二进制与 FFI。设计参考了 [matrix-rust-sdk](https://github.com/matrix-org/matrix-rust-sdk) 的 sans-I/O 核心 + Trait 驱动分层模式。
 
-**当前状态**：核心链路（消息收发、存储、转发、房间事件同步、全文搜索）已实现并通过集成测试；E2EE 与 DHT 发现的运行时集成仍在收口中（见 [完成度](#完成度)）。本文所述能力均与代码实际状态一致，未闭环的能力会明确标注。
+**当前状态**：核心链路（消息收发、存储、转发、房间事件同步、全文搜索、DHT 地址发现 fallback）已实现并通过集成测试；E2EE 的运行时集成仍在收口中（见 [完成度](#完成度)）。本文所述能力均与代码实际状态一致，未闭环的能力会明确标注。
 
 - 蓝图主锚点：[`docs/plans/2026-03-18-feat-nextim-implementation-plan.md`](docs/plans/2026-03-18-feat-nextim-implementation-plan.md)
 - 契约事实源：[`.plans/nextim-dev/docs/api-contracts.md`](.plans/nextim-dev/docs/api-contracts.md)
@@ -103,8 +103,8 @@ transport  storage   crypto
 | E2EE 加密原语（Olm / Megolm） | 🟡 部分 | 加密/解密/序列化已实现；客户端↔Store 运行时联调未闭环 |
 | 多设备注册与发现 | 🟡 部分 | 设备注册/列表 REST 端点已落地（`/devices`），同账号设备发现可用；密钥跨设备分发未做 |
 | 多设备密钥同步（重加密/收敛） | 🟠 待收口 | `DeviceManager` + Storage device 接口就绪，缺跨设备密钥分发与冲突收敛 |
-| DHT 节点发现 | 🟠 库级 | `nextim-discovery` 有 Kademlia 原语，未接入 store/peer 运行时 |
-| STUN / NAT 穿透 | 🔴 未实现 | 蓝图规划中，无运行时实现 |
+| DHT 节点发现 | 🟡 部分 | WebSocket DHT 服务已接入 store 运行时:节点 publish 签名身份卡片、转发缺地址时 lookup 作 fallback(`enable_dht`)。验签防伪造。未做完整 Kademlia 迭代查询 |
+| STUN / NAT 穿透 | 🔴 未实现 | 蓝图规划中,无运行时实现 |
 
 图例：✅ 已落地并验证 · 🟡 部分实现 · 🟠 待收口 · 🔴 未实现
 
@@ -250,7 +250,7 @@ NextIM/
 │   ├── nextim-core/              # 核心逻辑 + Trait 定义（sans-I/O）
 │   ├── nextim-transport/         # WebSocket 传输实现
 │   ├── nextim-storage/           # SQLite 存储 + Tantivy 搜索
-│   ├── nextim-discovery/         # Kademlia DHT 原语（库级，未接线运行时）
+│   ├── nextim-discovery/         # Kademlia DHT + WebSocket 发现服务(已接入 store fallback)
 │   ├── nextim-store/             # Store 节点（二进制：server + relay + api）
 │   ├── nextim-peer/              # Peer 节点（二进制：relay + cache + observability）
 │   ├── nextim-ffi/               # Android FFI（UniFFI）

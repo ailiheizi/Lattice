@@ -3,6 +3,7 @@ fn main() {
     println!("cargo:rerun-if-changed=../../proto/message.proto");
     println!("cargo:rerun-if-changed=../../proto/group.proto");
     println!("cargo:rerun-if-changed=../../proto/transport.proto");
+    println!("cargo:rerun-if-changed=../../proto/discovery.proto");
     prost_build::Config::new()
         .compile_protos(
             &[
@@ -10,6 +11,7 @@ fn main() {
                 "../../proto/message.proto",
                 "../../proto/group.proto",
                 "../../proto/transport.proto",
+                "../../proto/discovery.proto",
             ],
             &["../../proto"],
         )

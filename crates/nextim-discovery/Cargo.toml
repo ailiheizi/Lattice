@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 nextim-proto = { path = "../nextim-proto" }
 nextim-core = { path = "../nextim-core" }
+nextim-crypto = { path = "../nextim-crypto" }
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -13,3 +14,6 @@ sha2.workspace = true
 hex.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+prost.workspace = true
+futures-util = "0.3"
+tokio-tungstenite.workspace = true

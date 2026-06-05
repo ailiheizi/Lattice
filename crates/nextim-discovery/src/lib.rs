@@ -9,3 +9,4 @@
 
 pub mod dht;
 pub mod identity_card;
+pub mod service;
