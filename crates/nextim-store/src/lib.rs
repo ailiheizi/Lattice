@@ -55,6 +55,10 @@ pub struct StoreConfig {
     /// DHT 引导节点地址列表：启动时向它们发布自己的身份卡片、查询时向它们 lookup。
     #[serde(default)]
     pub dht_bootstrap: Vec<String>,
+    /// 防骚扰准入:开启后,非联系人(不在联系人表)的消息一律拒绝。
+    /// 体现"对方同意(加为联系人)后才能通信"。默认 false 保持兼容。
+    #[serde(default)]
+    pub require_contact: bool,
 }
 
 fn default_dht_addr() -> String {
@@ -84,6 +88,7 @@ impl Default for StoreConfig {
             enable_dht: false,
             dht_addr: default_dht_addr(),
             dht_bootstrap: Vec::new(),
+            require_contact: false,
         }
     }
 }
@@ -114,6 +119,8 @@ pub struct AppState {
     pub enable_dht: bool,
     /// DHT 引导节点地址，转发缺地址时向它们 lookup。
     pub dht_bootstrap: Vec<String>,
+    /// 防骚扰准入:开启后非联系人消息被拒。
+    pub require_contact: bool,
 }
 
 pub async fn run() -> Result<()> {
@@ -215,6 +222,7 @@ pub async fn run() -> Result<()> {
         allow_unsigned: config.allow_unsigned,
         enable_dht: config.enable_dht,
         dht_bootstrap: config.dht_bootstrap.clone(),
+        require_contact: config.require_contact,
     });
 
     // DHT 节点发现（可选）：启动本地 discovery 服务，并向引导节点发布自己的签名身份卡片。

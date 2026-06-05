@@ -37,3 +37,8 @@ dht_addr = "0.0.0.0:9102"
 # 启动时向它们发布自己的签名身份卡片；转发缺地址时向它们查询。
 # 例：dht_bootstrap = ["ws://bootstrap1.example.com:9102", "ws://bootstrap2.example.com:9102"]
 dht_bootstrap = []
+
+# === 防骚扰准入 ===
+# 开启后,非联系人(不在联系人表)发来的消息一律拒绝,
+# 体现"对方同意(把你加为联系人)后才能通信"。默认 false 保持兼容。
+require_contact = false

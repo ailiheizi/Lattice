@@ -151,6 +151,27 @@ async fn handle_frame(
             }
 
             let verified = !envelope.signature.is_empty();
+
+            // 防骚扰准入:require_contact 开启时,非联系人(不在联系人表)的消息一律拒绝。
+            // 体现"对方同意(加为联系人)后才能通信"。
+            if state.require_contact {
+                let is_contact = state
+                    .storage
+                    .get_contact(&envelope.sender_fingerprint)
+                    .await
+                    .ok()
+                    .flatten()
+                    .is_some();
+                if !is_contact {
+                    tracing::warn!(
+                        "Rejecting message {} from non-contact {} (require_contact=true)",
+                        envelope.msg_id,
+                        envelope.sender_fingerprint
+                    );
+                    return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
+                }
+            }
+
             let received_ts = now_received_ts();
             let msg_hash = sign::compute_msg_hash(envelope).map_err(|e| {
                 anyhow::anyhow!("compute message hash for {}: {e}", envelope.msg_id)
@@ -1036,6 +1057,7 @@ mod tests {
             allow_unsigned: true,
             enable_dht: false,
             dht_bootstrap: Vec::new(),
+            require_contact: false,
         })
     }
 
@@ -1290,6 +1312,7 @@ mod tests {
             allow_unsigned: true,
             enable_dht: true,
             dht_bootstrap: vec![dht_addr.clone()],
+            require_contact: false,
         });
         state
             .storage
@@ -1685,5 +1708,64 @@ mod tests {
         let receipts = state.storage.get_read_receipts("room-1").await.unwrap();
         assert_eq!(receipts.len(), 1, "same reader updated, not duplicated");
         assert_eq!(receipts[0].up_to_msg_id, "m9");
+    }
+
+    fn require_contact_state() -> Arc<AppState> {
+        Arc::new(AppState {
+            storage: SqliteStorage::in_memory().expect("storage"),
+            search: TantivySearch::in_memory().expect("search"),
+            online: Arc::new(RwLock::new(HashMap::new())),
+            outbound: Arc::new(RwLock::new(HashMap::new())),
+            identity: MasterKeyPair::generate(),
+            olm_account: Mutex::new(OlmAccount::new()),
+            fingerprint: "store-fp".to_string(),
+            display_name: "Store".to_string(),
+            ws_addr: "127.0.0.1:0".to_string(),
+            api_token: String::new(),
+            allow_unsigned: true,
+            enable_dht: false,
+            dht_bootstrap: Vec::new(),
+            require_contact: true,
+        })
+    }
+
+    #[tokio::test]
+    async fn require_contact_rejects_message_from_stranger() {
+        let state = require_contact_state();
+        let sink = test_sender_sink().await;
+        // sender-fp 不在联系人表 → 拒绝
+        let resp = handle_frame(test_frame("room-x"), &state, &sink)
+            .await
+            .expect("handle")
+            .expect("ack");
+        match resp.body {
+            Some(frame::Body::Ack(ack)) => assert_eq!(ack.status, AckStatus::Rejected as i32),
+            other => panic!("expected rejected ack, got {other:?}"),
+        }
+        // 未存储
+        let stored = state.storage.get_message("msg-1").await.unwrap();
+        assert!(stored.is_none(), "stranger message must not be stored");
+    }
+
+    #[tokio::test]
+    async fn require_contact_accepts_message_from_contact() {
+        let state = require_contact_state();
+        let sink = test_sender_sink().await;
+        // 把 sender-fp 加为联系人 → 放行
+        state
+            .storage
+            .save_contact(&test_contact("sender-fp", "", ""))
+            .await
+            .unwrap();
+        let resp = handle_frame(test_frame("room-x"), &state, &sink)
+            .await
+            .expect("handle")
+            .expect("ack");
+        match resp.body {
+            Some(frame::Body::Ack(ack)) => assert_eq!(ack.status, AckStatus::Received as i32),
+            other => panic!("expected received ack, got {other:?}"),
+        }
+        let stored = state.storage.get_message("msg-1").await.unwrap();
+        assert!(stored.is_some(), "contact message should be stored");
     }
 }
