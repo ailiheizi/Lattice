@@ -81,3 +81,22 @@ reference/
 
 # Playwright MCP 临时产物
 .playwright-mcp/
+
+# AI 开发工具运行时产物与内部控制面（不进公开仓库，仅本地保留）
+.omc/
+.plans/
+CLAUDE.md
+
+# AI 生成的过程总结/报告类文档（非项目文档）
+FINAL_SUMMARY.md
+PROJECT_COMPLETE.md
+web/IMPLEMENTATION_SUMMARY.md
+web/chat/COMPLETION_REPORT.md
+web/chat/DELIVERY_REPORT.md
+web/chat/FILE_MANIFEST.md
+web/chat/FINAL_SUMMARY.md
+web/chat/PROJECT_COMPLETE.md
+web/chat/PROJECT_SUMMARY.md
+web/store-admin/FINAL_SUMMARY.txt
+web/store-admin/PROJECT_COMPLETE.md
+web/store-admin/SUMMARY.md
