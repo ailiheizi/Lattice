@@ -183,10 +183,55 @@ pub fn verify_room_event(
     Ok(true)
 }
 
-/// 验证消息签名
-///
-/// 检查 Envelope 中的 signature 是否由 sender 的公钥签发，
-/// 同时验证 payload_hash 与按消息关键字段计算的 msg_hash 一致。
+/// 计算 MessageOp(撤回/编辑)的签名哈希。
+/// 覆盖 op_id ‖ room_id ‖ target_msg_id ‖ actor_fingerprint ‖ op_type ‖ new_text,不含 timestamp。
+pub fn compute_message_op_hash(
+    op: &nextim_proto::message::MessageOp,
+) -> Result<Vec<u8>, SignVerifyError> {
+    let mut encoded = Vec::new();
+    append_length_prefixed(&mut encoded, op.op_id.as_bytes())?;
+    append_length_prefixed(&mut encoded, op.room_id.as_bytes())?;
+    append_length_prefixed(&mut encoded, op.target_msg_id.as_bytes())?;
+    append_length_prefixed(&mut encoded, op.actor_fingerprint.as_bytes())?;
+    encoded.extend_from_slice(&op.op_type.to_be_bytes());
+    append_length_prefixed(&mut encoded, op.new_text.as_bytes())?;
+    Ok(sha256(&encoded))
+}
+
+/// 为 MessageOp 生成签名。
+pub fn sign_message_op(
+    signing_key: &ed25519_dalek::SigningKey,
+    op: &nextim_proto::message::MessageOp,
+) -> Result<Vec<u8>, SignVerifyError> {
+    use ed25519_dalek::Signer;
+    let hash = compute_message_op_hash(op)?;
+    Ok(signing_key.sign(&hash).to_bytes().to_vec())
+}
+
+/// 验证 MessageOp 签名是否由 actor 公钥签发。
+/// 调用方(Store)还需另外校验 actor_fingerprint == 原消息 sender(只有原作者能撤回/编辑)。
+pub fn verify_message_op(
+    actor_public_key: &[u8],
+    op: &nextim_proto::message::MessageOp,
+) -> Result<bool, SignVerifyError> {
+    let computed = compute_message_op_hash(op)?;
+    let verifying_key = VerifyingKey::from_bytes(
+        actor_public_key
+            .try_into()
+            .map_err(|_| SignVerifyError::InvalidPublicKey)?,
+    )
+    .map_err(|_| SignVerifyError::InvalidPublicKey)?;
+    let sig_bytes: [u8; 64] = op
+        .signature
+        .as_slice()
+        .try_into()
+        .map_err(|_| SignVerifyError::InvalidSignature)?;
+    let signature = Signature::from_bytes(&sig_bytes);
+    verifying_key
+        .verify(&computed, &signature)
+        .map_err(|_| SignVerifyError::SignatureVerificationFailed)?;
+    Ok(true)
+}
 pub fn verify_envelope(
     sender_public_key: &[u8],
     envelope: &Envelope,
@@ -549,5 +594,43 @@ mod tests {
         let event = make_signed_room_event(&key);
         // hash 正确但签名非该公钥所签 → 验签失败
         assert!(verify_room_event(other.verifying_key().as_bytes(), &event).is_err());
+    }
+
+    fn make_signed_message_op(key: &SigningKey) -> nextim_proto::message::MessageOp {
+        let mut op = nextim_proto::message::MessageOp {
+            op_id: "op-1".to_string(),
+            room_id: "room-1".to_string(),
+            target_msg_id: "msg-1".to_string(),
+            actor_fingerprint: "actor-fp".to_string(),
+            op_type: 0, // REDACT
+            new_text: String::new(),
+            timestamp: 1000,
+            signature: Vec::new(),
+        };
+        op.signature = sign_message_op(key, &op).unwrap();
+        op
+    }
+
+    #[test]
+    fn test_verify_message_op_ok() {
+        let key = SigningKey::generate(&mut OsRng);
+        let op = make_signed_message_op(&key);
+        assert!(verify_message_op(key.verifying_key().as_bytes(), &op).unwrap());
+    }
+
+    #[test]
+    fn test_message_op_tampered_target_fails() {
+        let key = SigningKey::generate(&mut OsRng);
+        let mut op = make_signed_message_op(&key);
+        op.target_msg_id = "msg-2".to_string(); // 改目标但不重签 → 失败
+        assert!(verify_message_op(key.verifying_key().as_bytes(), &op).is_err());
+    }
+
+    #[test]
+    fn test_message_op_wrong_key_fails() {
+        let key = SigningKey::generate(&mut OsRng);
+        let other = SigningKey::generate(&mut OsRng);
+        let op = make_signed_message_op(&key);
+        assert!(verify_message_op(other.verifying_key().as_bytes(), &op).is_err());
     }
 }

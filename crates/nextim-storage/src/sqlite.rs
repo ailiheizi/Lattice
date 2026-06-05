@@ -731,6 +731,8 @@ mod tests {
             received_ts: 0,
             prev_hashes: Vec::new(),
             msg_hash: Vec::new(),
+            redacted: false,
+            edited: false,
         }
     }
 
@@ -752,6 +754,8 @@ mod tests {
             received_ts: 0,
             prev_hashes: Vec::new(),
             msg_hash: Vec::new(),
+            redacted: false,
+            edited: false,
         }
     }
 

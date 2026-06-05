@@ -15,6 +15,7 @@ message Frame {
         nextim.identity.KeyBundle key_bundle = 20;
         KeyRequest key_request = 21;
         nextim.group.RoomEvent room_event = 30;
+        nextim.message.MessageOp message_op = 31;
         SyncRequest sync_request = 40;
         SyncResponse sync_response = 41;
         Ping ping = 50;
@@ -28,6 +29,7 @@ enum FrameType {
     KEY_BUNDLE = 2;
     KEY_REQUEST = 3;
     ROOM_EVENT = 4;
+    MESSAGE_OP = 9;
     SYNC_REQUEST = 5;
     SYNC_RESPONSE = 6;
     PING = 7;

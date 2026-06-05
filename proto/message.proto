@@ -61,4 +61,27 @@ message Message {
     uint64 received_ts = 9; // Store-local receive timestamp in milliseconds since UNIX_EPOCH.
     repeated bytes prev_hashes = 10; // Stored DAG parents; not part of P2 msg_hash/signature yet.
     bytes msg_hash = 11; // P1/P2 msg_hash over msg_id|sender|recipient|payload; prev_hashes excluded until P3.
+    bool redacted = 12; // tombstone: 被撤回后置 true(保留 DAG 节点,内容清空)
+    bool edited = 13;   // 被编辑后置 true(content 已替换为新文本)
 }
+
+// 消息操作：撤回(redact)或编辑(edit)一条已存在的消息。
+// 签名绑定 (op_id ‖ target_msg_id ‖ actor_fingerprint ‖ op_type ‖ new_text)，
+// Store 验证 actor 必须等于原消息的 sender_fingerprint(只有原作者能撤回/编辑)。
+// 撤回采用 tombstone:不物理删除原消息(保留 DAG hash 节点),只标记 redacted。
+message MessageOp {
+    string op_id = 1;
+    string room_id = 2;
+    string target_msg_id = 3;       // 被操作的原消息 ID
+    string actor_fingerprint = 4;   // 发起者(必须 == 原消息 sender)
+    MessageOpType op_type = 5;
+    string new_text = 6;            // EDIT 时的新文本;REDACT 时为空
+    uint64 timestamp = 7;           // 发起者声称时间(显示用,不进签名)
+    bytes signature = 8;
+}
+
+enum MessageOpType {
+    REDACT = 0;   // 撤回
+    EDIT = 1;     // 编辑
+}
+

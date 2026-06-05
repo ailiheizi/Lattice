@@ -265,6 +265,99 @@ async fn handle_frame(
             }))
         }
 
+        Some(frame::Body::MessageOp(ref op)) => {
+            use nextim_proto::message::MessageOpType;
+
+            // 取原消息;不存在则拒绝。
+            let original = state
+                .storage
+                .get_message(&op.target_msg_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            let mut original = match original {
+                Some(m) => m,
+                None => {
+                    tracing::warn!("MessageOp target {} not found", op.target_msg_id);
+                    return Ok(Some(rejected_ack(frame.seq, &op.op_id)));
+                }
+            };
+
+            // 只有原消息作者能撤回/编辑:actor 必须等于原 sender。
+            if op.actor_fingerprint != original.sender_fingerprint {
+                tracing::warn!(
+                    "MessageOp actor {} != original sender {}; rejected",
+                    op.actor_fingerprint,
+                    original.sender_fingerprint
+                );
+                return Ok(Some(rejected_ack(frame.seq, &op.op_id)));
+            }
+
+            // 验签:取 actor 公钥(从联系人),验证 op 签名。allow_unsigned 时跳过。
+            if !op.signature.is_empty() {
+                let actor_key = state
+                    .storage
+                    .get_contact(&op.actor_fingerprint)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|c| c.identity)
+                    .map(|i| i.ed25519_public_key);
+                let ok = match actor_key {
+                    Some(key) => {
+                        matches!(nextim_crypto::sign::verify_message_op(&key, op), Ok(true))
+                    }
+                    None => false,
+                };
+                if !ok {
+                    tracing::warn!("MessageOp {} signature verification failed", op.op_id);
+                    return Ok(Some(rejected_ack(frame.seq, &op.op_id)));
+                }
+            } else if !state.allow_unsigned {
+                tracing::warn!(
+                    "Rejecting unsigned MessageOp {} (allow_unsigned=false)",
+                    op.op_id
+                );
+                return Ok(Some(rejected_ack(frame.seq, &op.op_id)));
+            }
+
+            // 应用操作(tombstone:不删 DAG 节点,只改字段)。
+            match MessageOpType::try_from(op.op_type).unwrap_or(MessageOpType::Redact) {
+                MessageOpType::Redact => {
+                    original.content = None;
+                    original.encrypted_payload = None;
+                    original.redacted = true;
+                }
+                MessageOpType::Edit => {
+                    if let Some(content) = original.content.as_mut() {
+                        content.text = op.new_text.clone();
+                    } else {
+                        original.content = Some(nextim_proto::message::MessageContent {
+                            r#type: nextim_proto::message::MessageType::Text as i32,
+                            text: op.new_text.clone(),
+                            ..Default::default()
+                        });
+                    }
+                    original.edited = true;
+                }
+            }
+
+            state
+                .storage
+                .save_message(&original)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+
+            tracing::info!("Applied MessageOp {} to {}", op.op_id, op.target_msg_id);
+            Ok(Some(Frame {
+                seq: frame.seq,
+                r#type: FrameType::Ack as i32,
+                body: Some(frame::Body::Ack(MessageAck {
+                    msg_id: op.op_id.clone(),
+                    status: AckStatus::Received as i32,
+                })),
+            }))
+        }
+
         Some(frame::Body::Ping(ping)) => Ok(Some(Frame {
             seq: frame.seq,
             r#type: FrameType::Pong as i32,
@@ -458,6 +551,8 @@ fn envelope_to_message(
         received_ts,
         prev_hashes: envelope.prev_hashes.clone(),
         msg_hash,
+        redacted: false,
+        edited: false,
     }
 }
 
@@ -1256,5 +1351,116 @@ mod tests {
             .unwrap()
             .expect("parent stored");
         assert_eq!(parent.msg_hash, parent_hash);
+    }
+
+    fn store_test_message(msg_id: &str, sender: &str, text: &str) -> Message {
+        Message {
+            msg_id: msg_id.to_string(),
+            room_id: "room-1".to_string(),
+            sender_fingerprint: sender.to_string(),
+            timestamp: 100,
+            content: Some(nextim_proto::message::MessageContent {
+                r#type: nextim_proto::message::MessageType::Text as i32,
+                text: text.to_string(),
+                ..Default::default()
+            }),
+            encrypted: false,
+            verified: true,
+            encrypted_payload: None,
+            received_ts: 100,
+            prev_hashes: Vec::new(),
+            msg_hash: format!("hash-{msg_id}").into_bytes(),
+            redacted: false,
+            edited: false,
+        }
+    }
+
+    fn message_op_frame(op_type: i32, target: &str, actor: &str, new_text: &str) -> Frame {
+        Frame {
+            seq: 7,
+            r#type: FrameType::MessageOp as i32,
+            body: Some(frame::Body::MessageOp(nextim_proto::message::MessageOp {
+                op_id: "op-1".to_string(),
+                room_id: "room-1".to_string(),
+                target_msg_id: target.to_string(),
+                actor_fingerprint: actor.to_string(),
+                op_type,
+                new_text: new_text.to_string(),
+                timestamp: 200,
+                signature: Vec::new(), // test_state allow_unsigned=true
+            })),
+        }
+    }
+
+    #[tokio::test]
+    async fn message_op_redact_tombstones_message_for_author() {
+        let state = test_state();
+        let sink = test_sender_sink().await;
+        state
+            .storage
+            .save_message(&store_test_message("m1", "alice", "secret"))
+            .await
+            .unwrap();
+
+        // REDACT(op_type=0)由原作者 alice 发起
+        let resp = handle_frame(message_op_frame(0, "m1", "alice", ""), &state, &sink)
+            .await
+            .expect("handle")
+            .expect("ack");
+        assert_eq!(resp.r#type, FrameType::Ack as i32);
+
+        let m = state.storage.get_message("m1").await.unwrap().unwrap();
+        assert!(m.redacted, "message should be tombstoned");
+        assert!(m.content.is_none(), "redacted content cleared");
+    }
+
+    #[tokio::test]
+    async fn message_op_rejected_when_actor_is_not_author() {
+        let state = test_state();
+        let sink = test_sender_sink().await;
+        state
+            .storage
+            .save_message(&store_test_message("m2", "alice", "hi"))
+            .await
+            .unwrap();
+
+        // 冒充者 mallory 试图撤回 alice 的消息 → REJECTED,消息不变
+        let resp = handle_frame(message_op_frame(0, "m2", "mallory", ""), &state, &sink)
+            .await
+            .expect("handle")
+            .expect("ack");
+        match resp.body {
+            Some(frame::Body::Ack(ack)) => {
+                assert_eq!(ack.status, AckStatus::Rejected as i32)
+            }
+            other => panic!("expected rejected ack, got {other:?}"),
+        }
+        let m = state.storage.get_message("m2").await.unwrap().unwrap();
+        assert!(!m.redacted, "message must not be redacted by non-author");
+    }
+
+    #[tokio::test]
+    async fn message_op_edit_replaces_text_for_author() {
+        let state = test_state();
+        let sink = test_sender_sink().await;
+        state
+            .storage
+            .save_message(&store_test_message("m3", "alice", "old"))
+            .await
+            .unwrap();
+
+        // EDIT(op_type=1)
+        handle_frame(
+            message_op_frame(1, "m3", "alice", "new text"),
+            &state,
+            &sink,
+        )
+        .await
+        .expect("handle")
+        .expect("ack");
+
+        let m = state.storage.get_message("m3").await.unwrap().unwrap();
+        assert!(m.edited);
+        assert_eq!(m.content.unwrap().text, "new text");
     }
 }

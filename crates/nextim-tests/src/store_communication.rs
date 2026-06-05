@@ -888,6 +888,8 @@ async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
         received_ts: 1000,
         prev_hashes: Vec::new(),
         msg_hash: b"unified-msg-hash-1".to_vec(),
+        redacted: false,
+        edited: false,
     };
     fixture
         .state

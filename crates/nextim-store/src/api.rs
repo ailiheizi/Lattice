@@ -204,6 +204,8 @@ async fn send_message(
         received_ts: timestamp,
         prev_hashes: Vec::new(),
         msg_hash: envelope.payload_hash.clone(),
+        redacted: false,
+        edited: false,
     };
 
     state

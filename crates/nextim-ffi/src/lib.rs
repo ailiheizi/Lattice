@@ -166,6 +166,8 @@ impl NextImClient {
             received_ts: timestamp,
             prev_hashes: Vec::new(),
             msg_hash: Vec::new(),
+            redacted: false,
+            edited: false,
         };
 
         self.rt.block_on(async {
