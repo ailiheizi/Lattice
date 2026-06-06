@@ -492,6 +492,32 @@ async fn handle_frame(
             }))
         }
 
+        Some(frame::Body::Typing(ref typing)) => {
+            // 瞬态信令:不持久化、不进 DAG。转发给房间内其他在线成员。
+            let frame_data = frame.encode_to_vec();
+            let members: Vec<String> = match state.storage.get_room(&typing.room_id).await {
+                Ok(Some(room)) => room
+                    .members
+                    .into_iter()
+                    .map(|m| m.user_fingerprint)
+                    .filter(|fp| fp != &typing.actor_fingerprint)
+                    .collect(),
+                _ => Vec::new(),
+            };
+            let online = state.online.read().await;
+            for member in &members {
+                if let Some(sink) = online.get(member) {
+                    let _ = sink
+                        .lock()
+                        .await
+                        .send(WsMessage::Binary(frame_data.clone()))
+                        .await;
+                }
+            }
+            // typing 不回 Ack(瞬态,无需确认)
+            Ok(None)
+        }
+
         Some(frame::Body::Ping(ping)) => Ok(Some(Frame {
             seq: frame.seq,
             r#type: FrameType::Pong as i32,
@@ -1767,5 +1793,25 @@ mod tests {
         }
         let stored = state.storage.get_message("msg-1").await.unwrap();
         assert!(stored.is_some(), "contact message should be stored");
+    }
+
+    #[tokio::test]
+    async fn typing_is_transient_no_ack_no_storage() {
+        let state = test_state();
+        let sink = test_sender_sink().await;
+
+        let frame = Frame {
+            seq: 11,
+            r#type: FrameType::Typing as i32,
+            body: Some(frame::Body::Typing(nextim_proto::message::Typing {
+                room_id: "room-1".to_string(),
+                actor_fingerprint: "alice".to_string(),
+                typing: true,
+                timestamp: 600,
+            })),
+        };
+        // 瞬态信令:不回 Ack(返回 None),不持久化。
+        let resp = handle_frame(frame, &state, &sink).await.expect("handle");
+        assert!(resp.is_none(), "typing must not produce an ack");
     }
 }

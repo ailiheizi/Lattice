@@ -110,4 +110,13 @@ message ReadReceipt {
     bytes signature = 5;
 }
 
+// 正在输入状态(瞬态信令):不持久化、不进 DAG,仅广播给房间在线成员。
+// typing=true 开始输入,false 停止。客户端通常每隔几秒重发以保活。
+message Typing {
+    string room_id = 1;
+    string actor_fingerprint = 2;
+    bool typing = 3;
+    uint64 timestamp = 4;
+}
+
 

@@ -30,8 +30,9 @@ status: living
 ### 第一梯队:IM 基础体验
 - ✅ 消息撤回/编辑(已完成)
 - ✅ reactions(已完成)
-- 🚧 已读/送达回执(AckStatus 枚举已有;ReadReceipt proto+签名已加,storage/sync 待接)
-- ⬜ typing indicator(瞬态信令,未做)
+- ✅ 已读/送达回执(已完成:ReadReceipt 签名+存储+server,AckStatus::Read 接线)
+- ✅ typing indicator(已完成:瞬态信令,转发给房间在线成员,不持久化)
+- ✅ **防骚扰准入(已完成)**:`require_contact` 开关,非联系人消息拒收(见第 3 节)
 
 ### 第二梯队:加密闭环
 - ⬜ E2EE 运行时未打通(Olm/Megolm 原语在,客户端↔Store 密钥协商未接)
