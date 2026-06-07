@@ -152,24 +152,14 @@ async fn handle_frame(
 
             let verified = !envelope.signature.is_empty();
 
-            // 防骚扰准入:require_contact 开启时,非联系人(不在联系人表)的消息一律拒绝。
-            // 体现"对方同意(加为联系人)后才能通信"。
-            if state.require_contact {
-                let is_contact = state
-                    .storage
-                    .get_contact(&envelope.sender_fingerprint)
-                    .await
-                    .ok()
-                    .flatten()
-                    .is_some();
-                if !is_contact {
-                    tracing::warn!(
-                        "Rejecting message {} from non-contact {} (require_contact=true)",
-                        envelope.msg_id,
-                        envelope.sender_fingerprint
-                    );
-                    return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
-                }
+            // 防骚扰准入:require_contact 时非联系人消息一律拒绝。
+            if !is_admitted(state, &envelope.sender_fingerprint).await {
+                tracing::warn!(
+                    "Rejecting message {} from non-contact {} (require_contact)",
+                    envelope.msg_id,
+                    envelope.sender_fingerprint
+                );
+                return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
             }
 
             let received_ts = now_received_ts();
@@ -289,6 +279,11 @@ async fn handle_frame(
         Some(frame::Body::MessageOp(ref op)) => {
             use nextim_proto::message::MessageOpType;
 
+            // 准入:require_contact 时非联系人的撤回/编辑拒绝。
+            if !is_admitted(state, &op.actor_fingerprint).await {
+                return Ok(Some(rejected_ack(frame.seq, &op.op_id)));
+            }
+
             // 取原消息;不存在则拒绝。
             let original = state
                 .storage
@@ -380,6 +375,10 @@ async fn handle_frame(
         }
 
         Some(frame::Body::Reaction(ref reaction)) => {
+            // 准入:require_contact 时非联系人的反应拒绝(防伴随信令骚扰)。
+            if !is_admitted(state, &reaction.actor_fingerprint).await {
+                return Ok(Some(rejected_ack(frame.seq, &reaction.reaction_id)));
+            }
             // 验签:任何人可对任意消息加/取消反应,但必须证明是 actor 本人。
             if !reaction.signature.is_empty() {
                 let actor_key = state
@@ -438,6 +437,10 @@ async fn handle_frame(
         }
 
         Some(frame::Body::ReadReceipt(ref receipt)) => {
+            // 准入:require_contact 时非联系人的已读回执拒绝。
+            if !is_admitted(state, &receipt.reader_fingerprint).await {
+                return Ok(Some(rejected_ack(frame.seq, &receipt.reader_fingerprint)));
+            }
             // 验签:reader 必须证明是本人(防止伪造他人已读位置)。
             if !receipt.signature.is_empty() {
                 let reader_key = state
@@ -493,6 +496,37 @@ async fn handle_frame(
         }
 
         Some(frame::Body::Typing(ref typing)) => {
+            // 准入:require_contact 时非联系人的 typing 直接丢弃。
+            if !is_admitted(state, &typing.actor_fingerprint).await {
+                return Ok(None);
+            }
+            // 验签:防止伪造他人"正在输入"。无签名按 allow_unsigned 策略。
+            if !typing.signature.is_empty() {
+                let actor_key = state
+                    .storage
+                    .get_contact(&typing.actor_fingerprint)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|c| c.identity)
+                    .map(|i| i.ed25519_public_key);
+                let ok = match actor_key {
+                    Some(key) => {
+                        matches!(nextim_crypto::sign::verify_typing(&key, typing), Ok(true))
+                    }
+                    None => false,
+                };
+                if !ok {
+                    tracing::warn!(
+                        "Dropping typing with invalid signature from {}",
+                        typing.actor_fingerprint
+                    );
+                    return Ok(None);
+                }
+            } else if !state.allow_unsigned {
+                return Ok(None);
+            }
+
             // 瞬态信令:不持久化、不进 DAG。转发给房间内其他在线成员。
             let frame_data = frame.encode_to_vec();
             let members: Vec<String> = match state.storage.get_room(&typing.room_id).await {
@@ -673,6 +707,22 @@ fn rejected_ack(seq: u64, msg_id: &str) -> Frame {
             status: AckStatus::Rejected as i32,
         })),
     }
+}
+
+/// 防骚扰准入:require_contact 开启时,发件人必须是联系人。
+/// 适用于所有携带发件人身份的 frame(消息/撤回/反应/已读/typing),
+/// 防止陌生人用伴随信令(reaction/typing 等)绕过准入骚扰。
+async fn is_admitted(state: &Arc<AppState>, sender_fingerprint: &str) -> bool {
+    if !state.require_contact {
+        return true;
+    }
+    state
+        .storage
+        .get_contact(sender_fingerprint)
+        .await
+        .ok()
+        .flatten()
+        .is_some()
 }
 
 fn now_received_ts() -> u64 {
@@ -911,7 +961,12 @@ async fn try_forward_message(
         for bootstrap in &state.dht_bootstrap {
             match nextim_discovery::service::lookup_from(bootstrap, &recipient_fingerprint).await {
                 Ok(Some(card)) => match nextim_crypto::sign::verify_identity_card(&card) {
-                    Ok(true) if !card.store_address.is_empty() => {
+                    // 必须同时:签名有效 + 卡片身份正是要找的接收方 + 有地址。
+                    // 防止引导节点返回"别人的合法卡"把消息重定向到错误地址。
+                    Ok(true)
+                        if card.fingerprint == recipient_fingerprint
+                            && !card.store_address.is_empty() =>
+                    {
                         tracing::info!(
                             "DHT fallback resolved {} -> {} (via bootstrap {})",
                             recipient_fingerprint,
@@ -924,6 +979,11 @@ async fn try_forward_message(
                         }
                         break;
                     }
+                    Ok(true) => tracing::warn!(
+                        "DHT card fingerprint mismatch: expected {}, got {}; ignored",
+                        recipient_fingerprint,
+                        card.fingerprint
+                    ),
                     _ => tracing::warn!(
                         "DHT card for {} from {} failed verification; ignored",
                         recipient_fingerprint,
@@ -1808,10 +1868,54 @@ mod tests {
                 actor_fingerprint: "alice".to_string(),
                 typing: true,
                 timestamp: 600,
+                signature: Vec::new(),
             })),
         };
         // 瞬态信令:不回 Ack(返回 None),不持久化。
         let resp = handle_frame(frame, &state, &sink).await.expect("handle");
         assert!(resp.is_none(), "typing must not produce an ack");
+    }
+
+    #[tokio::test]
+    async fn require_contact_rejects_reaction_from_stranger() {
+        // 回归(复核 Blocker 1):陌生人不能用 reaction 绕过准入骚扰。
+        let state = require_contact_state();
+        let sink = test_sender_sink().await;
+        state
+            .storage
+            .save_message(&store_test_message("rm1", "alice", "hi"))
+            .await
+            .unwrap();
+        // bob 非联系人 → reaction 被拒
+        let resp = handle_frame(reaction_frame("rm1", "bob", "👍", false), &state, &sink)
+            .await
+            .expect("handle")
+            .expect("ack");
+        match resp.body {
+            Some(frame::Body::Ack(ack)) => assert_eq!(ack.status, AckStatus::Rejected as i32),
+            other => panic!("expected rejected ack, got {other:?}"),
+        }
+        let reactions = state.storage.get_reactions("rm1").await.unwrap();
+        assert!(reactions.is_empty(), "stranger reaction must not be stored");
+    }
+
+    #[tokio::test]
+    async fn require_contact_drops_typing_from_stranger() {
+        // 回归(复核 Blocker 1):陌生人 typing 被丢弃。
+        let state = require_contact_state();
+        let sink = test_sender_sink().await;
+        let frame = Frame {
+            seq: 12,
+            r#type: FrameType::Typing as i32,
+            body: Some(frame::Body::Typing(nextim_proto::message::Typing {
+                room_id: "room-1".to_string(),
+                actor_fingerprint: "stranger".to_string(),
+                typing: true,
+                timestamp: 700,
+                signature: Vec::new(),
+            })),
+        };
+        let resp = handle_frame(frame, &state, &sink).await.expect("handle");
+        assert!(resp.is_none(), "stranger typing dropped silently");
     }
 }

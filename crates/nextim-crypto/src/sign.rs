@@ -326,6 +326,51 @@ pub fn verify_read_receipt(
         .map_err(|_| SignVerifyError::SignatureVerificationFailed)?;
     Ok(true)
 }
+
+/// 计算 Typing 的签名哈希。覆盖 room_id ‖ actor_fingerprint ‖ typing,不含 timestamp。
+pub fn compute_typing_hash(
+    typing: &nextim_proto::message::Typing,
+) -> Result<Vec<u8>, SignVerifyError> {
+    let mut encoded = Vec::new();
+    append_length_prefixed(&mut encoded, typing.room_id.as_bytes())?;
+    append_length_prefixed(&mut encoded, typing.actor_fingerprint.as_bytes())?;
+    encoded.push(typing.typing as u8);
+    Ok(sha256(&encoded))
+}
+
+/// 为 Typing 生成签名。
+pub fn sign_typing(
+    signing_key: &ed25519_dalek::SigningKey,
+    typing: &nextim_proto::message::Typing,
+) -> Result<Vec<u8>, SignVerifyError> {
+    use ed25519_dalek::Signer;
+    let hash = compute_typing_hash(typing)?;
+    Ok(signing_key.sign(&hash).to_bytes().to_vec())
+}
+
+/// 验证 Typing 签名是否由 actor 公钥签发(防止伪造他人"正在输入")。
+pub fn verify_typing(
+    actor_public_key: &[u8],
+    typing: &nextim_proto::message::Typing,
+) -> Result<bool, SignVerifyError> {
+    let computed = compute_typing_hash(typing)?;
+    let verifying_key = VerifyingKey::from_bytes(
+        actor_public_key
+            .try_into()
+            .map_err(|_| SignVerifyError::InvalidPublicKey)?,
+    )
+    .map_err(|_| SignVerifyError::InvalidPublicKey)?;
+    let sig_bytes: [u8; 64] = typing
+        .signature
+        .as_slice()
+        .try_into()
+        .map_err(|_| SignVerifyError::InvalidSignature)?;
+    let signature = Signature::from_bytes(&sig_bytes);
+    verifying_key
+        .verify(&computed, &signature)
+        .map_err(|_| SignVerifyError::SignatureVerificationFailed)?;
+    Ok(true)
+}
 pub fn verify_envelope(
     sender_public_key: &[u8],
     envelope: &Envelope,
