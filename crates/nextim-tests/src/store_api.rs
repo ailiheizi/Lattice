@@ -42,6 +42,7 @@ fn test_state() -> Arc<AppState> {
         enable_dht: false,
         dht_bootstrap: Vec::new(),
         require_contact: false,
+        rate_limiter: Mutex::new(nextim_core::rate_limiter::RateLimiter::new(60_000, 0)),
     })
 }
 
@@ -565,6 +566,7 @@ async fn start_store_api_with_token(token: &str) -> (String, tokio::task::JoinHa
         enable_dht: false,
         dht_bootstrap: Vec::new(),
         require_contact: false,
+        rate_limiter: Mutex::new(nextim_core::rate_limiter::RateLimiter::new(60_000, 0)),
     });
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

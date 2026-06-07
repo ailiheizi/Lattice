@@ -59,6 +59,9 @@ pub struct StoreConfig {
     /// 体现"对方同意(加为联系人)后才能通信"。默认 false 保持兼容。
     #[serde(default)]
     pub require_contact: bool,
+    /// 每个发送者每分钟最大消息数(防轰炸/刷屏)。0 表示不限流(默认)。
+    #[serde(default)]
+    pub rate_limit_per_min: u32,
 }
 
 fn default_dht_addr() -> String {
@@ -89,6 +92,7 @@ impl Default for StoreConfig {
             dht_addr: default_dht_addr(),
             dht_bootstrap: Vec::new(),
             require_contact: false,
+            rate_limit_per_min: 0,
         }
     }
 }
@@ -121,6 +125,8 @@ pub struct AppState {
     pub dht_bootstrap: Vec<String>,
     /// 防骚扰准入:开启后非联系人消息被拒。
     pub require_contact: bool,
+    /// 每发送者限流器(防轰炸)。
+    pub rate_limiter: Mutex<nextim_core::rate_limiter::RateLimiter>,
 }
 
 pub async fn run() -> Result<()> {
@@ -223,6 +229,10 @@ pub async fn run() -> Result<()> {
         enable_dht: config.enable_dht,
         dht_bootstrap: config.dht_bootstrap.clone(),
         require_contact: config.require_contact,
+        rate_limiter: Mutex::new(nextim_core::rate_limiter::RateLimiter::new(
+            60_000,
+            config.rate_limit_per_min,
+        )),
     });
 
     // DHT 节点发现（可选）：启动本地 discovery 服务，并向引导节点发布自己的签名身份卡片。

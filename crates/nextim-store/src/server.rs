@@ -162,6 +162,24 @@ async fn handle_frame(
                 return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
             }
 
+            // 限流防轰炸:同一发件人每分钟超过阈值则拒绝(准入挡陌生人,限流挡刷屏)。
+            {
+                let now = now_received_ts();
+                let allowed = state
+                    .rate_limiter
+                    .lock()
+                    .await
+                    .check_and_record(&envelope.sender_fingerprint, now);
+                if !allowed {
+                    tracing::warn!(
+                        "Rate limiting message {} from {} (too many in window)",
+                        envelope.msg_id,
+                        envelope.sender_fingerprint
+                    );
+                    return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
+                }
+            }
+
             let received_ts = now_received_ts();
             let msg_hash = sign::compute_msg_hash(envelope).map_err(|e| {
                 anyhow::anyhow!("compute message hash for {}: {e}", envelope.msg_id)
@@ -1144,6 +1162,7 @@ mod tests {
             enable_dht: false,
             dht_bootstrap: Vec::new(),
             require_contact: false,
+            rate_limiter: Mutex::new(nextim_core::rate_limiter::RateLimiter::new(60_000, 0)),
         })
     }
 
@@ -1399,6 +1418,7 @@ mod tests {
             enable_dht: true,
             dht_bootstrap: vec![dht_addr.clone()],
             require_contact: false,
+            rate_limiter: Mutex::new(nextim_core::rate_limiter::RateLimiter::new(60_000, 0)),
         });
         state
             .storage
@@ -1812,6 +1832,7 @@ mod tests {
             enable_dht: false,
             dht_bootstrap: Vec::new(),
             require_contact: true,
+            rate_limiter: Mutex::new(nextim_core::rate_limiter::RateLimiter::new(60_000, 0)),
         })
     }
 
@@ -1917,5 +1938,49 @@ mod tests {
         };
         let resp = handle_frame(frame, &state, &sink).await.expect("handle");
         assert!(resp.is_none(), "stranger typing dropped silently");
+    }
+
+    #[tokio::test]
+    async fn rate_limit_rejects_after_threshold() {
+        // 限流=2/窗口:同一发件人前 2 条通过,第 3 条被拒。
+        let state = Arc::new(AppState {
+            storage: SqliteStorage::in_memory().expect("storage"),
+            search: TantivySearch::in_memory().expect("search"),
+            online: Arc::new(RwLock::new(HashMap::new())),
+            outbound: Arc::new(RwLock::new(HashMap::new())),
+            identity: MasterKeyPair::generate(),
+            olm_account: Mutex::new(OlmAccount::new()),
+            fingerprint: "store-fp".to_string(),
+            display_name: "Store".to_string(),
+            ws_addr: "127.0.0.1:0".to_string(),
+            api_token: String::new(),
+            allow_unsigned: true,
+            enable_dht: false,
+            dht_bootstrap: Vec::new(),
+            require_contact: false,
+            rate_limiter: Mutex::new(nextim_core::rate_limiter::RateLimiter::new(60_000, 2)),
+        });
+        let sink = test_sender_sink().await;
+
+        let status_of = |resp: Option<Frame>| -> i32 {
+            match resp.unwrap().body {
+                Some(frame::Body::Ack(a)) => a.status,
+                other => panic!("expected ack, got {other:?}"),
+            }
+        };
+        // 前两条放行
+        assert_eq!(
+            status_of(handle_frame(test_frame("r"), &state, &sink).await.unwrap()),
+            AckStatus::Received as i32
+        );
+        assert_eq!(
+            status_of(handle_frame(test_frame("r"), &state, &sink).await.unwrap()),
+            AckStatus::Received as i32
+        );
+        // 第三条超限被拒
+        assert_eq!(
+            status_of(handle_frame(test_frame("r"), &state, &sink).await.unwrap()),
+            AckStatus::Rejected as i32
+        );
     }
 }

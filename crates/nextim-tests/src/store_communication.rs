@@ -50,6 +50,7 @@ fn test_state(data_dir: PathBuf) -> Arc<AppState> {
         enable_dht: false,
         dht_bootstrap: Vec::new(),
         require_contact: false,
+        rate_limiter: Mutex::new(nextim_core::rate_limiter::RateLimiter::new(60_000, 0)),
     })
 }
 
