@@ -55,6 +55,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/keys/generate", post(generate_one_time_keys))
         .route("/devices", post(register_device))
         .route("/devices/:user_fingerprint", get(list_devices))
+        .route("/media", post(upload_media))
+        .route("/media/:media_id", get(download_media))
         // 鉴权中间件：写操作（POST/DELETE）需 Bearer token，只读（GET）放行。
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))
         .layer(cors)
@@ -826,4 +828,62 @@ async fn list_devices(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(devices.iter().map(DeviceResp::from).collect()))
+}
+
+// === 媒体上传/下载(内容寻址)===
+
+#[derive(Deserialize)]
+struct UploadMediaQuery {
+    #[serde(default)]
+    media_type: String,
+}
+
+#[derive(Serialize)]
+struct UploadMediaResp {
+    media_id: String,
+    size: usize,
+}
+
+/// 上传媒体:media_id = hex(SHA-256(body)),内容寻址天然去重。
+/// 写操作,受 auth_middleware 的 Bearer token 保护。
+async fn upload_media(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<UploadMediaQuery>,
+    body: axum::body::Bytes,
+) -> Result<Json<UploadMediaResp>, (StatusCode, String)> {
+    if body.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "empty media body".to_string()));
+    }
+    let media_id = hex_encode(&sign::sha256(&body));
+    let media_type = if q.media_type.is_empty() {
+        "application/octet-stream".to_string()
+    } else {
+        q.media_type
+    };
+    state
+        .storage
+        .save_media(&media_id, &body, &media_type)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let size = body.len();
+    Ok(Json(UploadMediaResp { media_id, size }))
+}
+
+/// 下载媒体:media_id 是内容哈希(不可枚举猜测),只读公开。
+async fn download_media(
+    State(state): State<Arc<AppState>>,
+    Path(media_id): Path<String>,
+) -> Result<Response, (StatusCode, String)> {
+    let (data, media_type) = state
+        .storage
+        .get_media(&media_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or((StatusCode::NOT_FOUND, "media not found".to_string()))?;
+    use axum::response::IntoResponse;
+    Ok(([(axum::http::header::CONTENT_TYPE, media_type)], data).into_response())
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }

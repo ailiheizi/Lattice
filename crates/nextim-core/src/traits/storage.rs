@@ -159,4 +159,17 @@ pub trait Storage: Send + Sync {
         &self,
         fingerprint: &str,
     ) -> impl std::future::Future<Output = Result<Option<KeyBundle>>> + Send;
+
+    // === 媒体(内容寻址:media_id = SHA-256(bytes) 的十六进制,天然去重)===
+    fn save_media(
+        &self,
+        media_id: &str,
+        data: &[u8],
+        media_type: &str,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    /// 返回 (data, media_type)。
+    fn get_media(
+        &self,
+        media_id: &str,
+    ) -> impl std::future::Future<Output = Result<Option<(Vec<u8>, String)>>> + Send;
 }

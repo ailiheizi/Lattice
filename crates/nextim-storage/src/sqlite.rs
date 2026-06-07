@@ -120,6 +120,12 @@ impl SqliteStorage {
                 fingerprint TEXT PRIMARY KEY,
                 data BLOB NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS media (
+                media_id TEXT PRIMARY KEY,
+                media_type TEXT NOT NULL,
+                data BLOB NOT NULL
+            );
             ",
         )
         .map_err(|e| NextImError::Storage(e.to_string()))?;
@@ -782,6 +788,37 @@ impl Storage for SqliteStorage {
             )),
             None => Ok(None),
         }
+    }
+
+    async fn save_media(&self, media_id: &str, data: &[u8], media_type: &str) -> Result<()> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        // 内容寻址:media_id = SHA-256(data),重复上传幂等(INSERT OR IGNORE 不覆盖)。
+        conn.execute(
+            "INSERT OR IGNORE INTO media (media_id, media_type, data) VALUES (?1, ?2, ?3)",
+            params![media_id, media_type, data],
+        )
+        .map_err(|e| NextImError::Storage(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn get_media(&self, media_id: &str) -> Result<Option<(Vec<u8>, String)>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let mut stmt = conn
+            .prepare("SELECT data, media_type FROM media WHERE media_id = ?1")
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        let result = stmt
+            .query_row(params![media_id], |row| {
+                Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, String>(1)?))
+            })
+            .optional()
+            .map_err(|e| NextImError::Storage(e.to_string()))?;
+        Ok(result)
     }
 }
 

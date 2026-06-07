@@ -633,3 +633,57 @@ async fn write_endpoints_require_bearer_token() {
 
     handle.abort();
 }
+
+#[tokio::test]
+async fn media_upload_download_roundtrip_and_dedup() {
+    let (url, handle) = start_store_api().await;
+    let client = reqwest::Client::new();
+    let payload = b"\x89PNG\r\n\x1a\n fake image bytes".to_vec();
+
+    // 上传
+    let resp: serde_json::Value = client
+        .post(format!("{url}/media?media_type=image/png"))
+        .body(payload.clone())
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let media_id = resp["media_id"].as_str().unwrap().to_string();
+    assert_eq!(resp["size"].as_u64().unwrap() as usize, payload.len());
+    assert_eq!(media_id.len(), 64, "media_id is hex SHA-256");
+
+    // 下载,内容与 content-type 一致
+    let dl = client
+        .get(format!("{url}/media/{media_id}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(dl.status(), 200);
+    assert_eq!(dl.headers().get("content-type").unwrap(), "image/png");
+    let body = dl.bytes().await.unwrap();
+    assert_eq!(body.as_ref(), payload.as_slice());
+
+    // 内容寻址去重:重复上传同内容 → 相同 media_id
+    let resp2: serde_json::Value = client
+        .post(format!("{url}/media"))
+        .body(payload.clone())
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(resp2["media_id"].as_str().unwrap(), media_id);
+
+    // 不存在的 media_id → 404
+    let missing = client
+        .get(format!("{url}/media/{}", "0".repeat(64)))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), 404);
+
+    handle.abort();
+}
