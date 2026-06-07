@@ -46,3 +46,8 @@ require_contact = false
 # 每个发送者每分钟最大消息数(防轰炸/刷屏)。0 表示不限流(默认)。
 # 准入挡陌生人,限流挡已加好友后的刷屏。
 rate_limit_per_min = 0
+
+# === 可插拔存储后端 ===
+# 存储后端选择。目前仅支持 "sqlite"(默认,留空等同 sqlite)。
+# 经 nextim_store::build_storage 工厂构造;将来新增后端时在此切换。
+storage_backend = "sqlite"

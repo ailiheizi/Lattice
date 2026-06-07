@@ -14,6 +14,23 @@ use nextim_storage::tantivy_search::TantivySearch;
 pub mod api;
 pub mod server;
 
+// === 可插拔后端(简单方式)===
+// 当前后端通过类型别名 + 工厂函数集中,作为唯一扩展点。
+// 增加新后端时:把 alias 改成 enum(为其 impl 对应 trait),工厂按配置选;
+// 调用方(AppState/测试)用 alias 不变。现在只有 sqlite/tantivy 一种实现。
+/// 当前生效的存储后端实现。
+pub type ActiveStorage = SqliteStorage;
+/// 当前生效的搜索后端实现。
+pub type ActiveSearch = TantivySearch;
+
+/// 按配置构造存储后端(可插拔扩展点)。
+pub fn build_storage(backend: &str, db_path: &std::path::Path) -> Result<ActiveStorage> {
+    match backend {
+        "" | "sqlite" => SqliteStorage::open(db_path).map_err(|e| anyhow::anyhow!("{e}")),
+        other => Err(anyhow::anyhow!("unknown storage_backend: {other}")),
+    }
+}
+
 /// 在线连接类型
 pub type WsSink = futures_util::stream::SplitSink<
     tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
@@ -62,6 +79,9 @@ pub struct StoreConfig {
     /// 每个发送者每分钟最大消息数(防轰炸/刷屏)。0 表示不限流(默认)。
     #[serde(default)]
     pub rate_limit_per_min: u32,
+    /// 存储后端(可插拔):"sqlite"(默认)。将来加新后端在此选。
+    #[serde(default)]
+    pub storage_backend: String,
 }
 
 fn default_dht_addr() -> String {
@@ -93,6 +113,7 @@ impl Default for StoreConfig {
             dht_bootstrap: Vec::new(),
             require_contact: false,
             rate_limit_per_min: 0,
+            storage_backend: String::new(),
         }
     }
 }
@@ -106,8 +127,8 @@ impl StoreConfig {
 }
 
 pub struct AppState {
-    pub storage: SqliteStorage,
-    pub search: TantivySearch,
+    pub storage: ActiveStorage,
+    pub search: ActiveSearch,
     pub online: OnlineConnections,
     pub outbound: OutboundPool,
     pub identity: MasterKeyPair,
@@ -153,7 +174,7 @@ pub async fn run() -> Result<()> {
     let db_path = config.data_dir.join("store.db");
     let index_path = config.data_dir.join("search_index");
 
-    let storage = SqliteStorage::open(&db_path).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let storage = build_storage(&config.storage_backend, &db_path)?;
     let search = TantivySearch::open(&index_path).map_err(|e| anyhow::anyhow!("{e}"))?;
 
     // 初始化身份密钥（从文件加载或新建）
