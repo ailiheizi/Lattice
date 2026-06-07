@@ -79,6 +79,14 @@ E2EE 的核心约束:**Store 只转发密文**。Store 已有的存储/转发/DA
 
 ## 8. 决策点(需主控拍板)
 
+> **已敲定(2026-06-07)**:
+> - D-1 → 核心编排放 nextim-crypto/core(纯逻辑可单测,ffi/store 只调用)。
+> - D-2 → Store 加 `GET /keys/claim/:fingerprint`,取并消费一个 OTK(防重用),耗尽回退 fallback key。
+> - D-3 → 新建 proto `KeyDistribution` 消息 + 专用 frame type 分发群组密钥。
+> - D-4 → 新设备加入后才可解密群消息(不补发旧 Megolm session,最简单且隐私最好)。
+> - D-5 → MVP 用 TOFU(首次信任 identity key);交叉签名/设备验证留后续。
+
+
 - **D-1 实现边界**:E2EE 主要在客户端(ffi)。当前 ffi 是最小绑定。是先在 **nextim-crypto + 一个新 `session` 编排模块**做核心逻辑(可单测,不依赖真实客户端),还是直接在 ffi?推荐前者:核心编排在 crypto/core,ffi/store 只调用。
 - **D-2 预密钥 claim**:Store 加 `claim_one_time_key(fingerprint)` 端点(取并删一个 OTK,防重用)。预密钥耗尽时回退 fallback key。确认这个端点设计。
 - **D-3 群组密钥分发载体**:新 proto 消息 vs 复用 EncryptedPayload。

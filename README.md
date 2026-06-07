@@ -213,6 +213,8 @@ cargo run --release --bin nextim-peer
 | POST | `/rooms/:room_id/leave` | 离开房间 |
 | GET | `/keys/one-time` | 获取一次性预密钥 |
 | POST | `/keys/generate` | 生成一次性预密钥 |
+| POST | `/keys/bundle` | 上传自己的预密钥包（E2EE，写接口需 token） |
+| GET | `/keys/claim/:fingerprint` | claim 目标用户预密钥（消费一个 OTK，耗尽回退 fallback） |
 | POST | `/devices` | 注册设备到当前用户（同 ID 重复返回 409） |
 | GET | `/devices/:user_fingerprint` | 列出该用户已注册设备（多设备发现） |
 

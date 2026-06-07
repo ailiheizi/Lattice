@@ -689,3 +689,83 @@ async fn media_upload_download_roundtrip_and_dedup() {
 
     handle.abort();
 }
+
+#[tokio::test]
+async fn key_bundle_upload_then_claim_consumes_otk_and_falls_back() {
+    let token = "kb-token";
+    let (url, handle) = start_store_api_with_token(token).await;
+    let client = reqwest::Client::new();
+    let b64 = |b: &[u8]| base64::engine::general_purpose::STANDARD.encode(b);
+
+    // 上传预密钥包：2 个 OTK + 1 个 fallback。
+    let upload = client
+        .post(format!("{url}/keys/bundle"))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({
+            "fingerprint": "alice-fp",
+            "identity_key": b64(b"alice-identity"),
+            "one_time_keys": [b64(b"otk-1"), b64(b"otk-2")],
+            "fallback_key": b64(b"fallback-1"),
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(upload.status(), 200);
+
+    // 上传是写操作：无 token → 401。
+    let no_token = client
+        .post(format!("{url}/keys/bundle"))
+        .json(&serde_json::json!({
+            "fingerprint": "x", "identity_key": b64(b"x"), "one_time_keys": []
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(no_token.status(), 401);
+
+    // claim 是公开读：第一次消费 otk-1。
+    let claim1: serde_json::Value = client
+        .get(format!("{url}/keys/claim/alice-fp"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(claim1["identity_key"], b64(b"alice-identity"));
+    assert_eq!(claim1["one_time_key"], b64(b"otk-1"));
+    assert!(claim1["fallback_key"].is_null());
+
+    // 第二次消费 otk-2。
+    let claim2: serde_json::Value = client
+        .get(format!("{url}/keys/claim/alice-fp"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(claim2["one_time_key"], b64(b"otk-2"));
+
+    // OTK 耗尽 → 回退 fallback_key，one_time_key 为 null。
+    let claim3: serde_json::Value = client
+        .get(format!("{url}/keys/claim/alice-fp"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(claim3["one_time_key"].is_null());
+    assert_eq!(claim3["fallback_key"], b64(b"fallback-1"));
+
+    // 未知用户 → 404。
+    let unknown = client
+        .get(format!("{url}/keys/claim/nobody"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unknown.status(), 404);
+
+    handle.abort();
+}

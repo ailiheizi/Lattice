@@ -17,7 +17,7 @@ use nextim_core::traits::search::SearchIndex;
 use nextim_core::traits::storage::{Pagination, Storage, TimeRange};
 use nextim_crypto::sign;
 use nextim_proto::group::{HistoryVisibility, Room, RoomType};
-use nextim_proto::identity::{Contact, DeviceInfo, Identity, TrustLevel};
+use nextim_proto::identity::{Contact, DeviceInfo, Identity, KeyBundle, TrustLevel};
 use nextim_proto::message::{
     envelope::Payload, Envelope, Message, MessageContent, MessageType, PlainPayload,
 };
@@ -53,6 +53,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/rooms/:room_id/leave", post(leave_room_handler))
         .route("/keys/one-time", get(get_one_time_keys))
         .route("/keys/generate", post(generate_one_time_keys))
+        .route("/keys/bundle", post(upload_key_bundle))
+        .route("/keys/claim/:fingerprint", get(claim_one_time_key))
         .route("/devices", post(register_device))
         .route("/devices/:user_fingerprint", get(list_devices))
         .route("/media", post(upload_media))
@@ -886,4 +888,94 @@ async fn download_media(
 
 fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+// === E2EE 预密钥包:上传与 claim ===
+
+#[derive(Deserialize)]
+struct UploadKeyBundleReq {
+    fingerprint: String,
+    identity_key: String,       // base64
+    one_time_keys: Vec<String>, // base64 列表
+    #[serde(default)]
+    fallback_key: String, // base64
+    #[serde(default)]
+    signature: String, // base64
+}
+
+/// 上传自己的预密钥包(写操作,受 Bearer token 保护)。
+async fn upload_key_bundle(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<UploadKeyBundleReq>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let mut one_time_keys = Vec::with_capacity(req.one_time_keys.len());
+    for k in &req.one_time_keys {
+        one_time_keys.push(base64_decode(k)?);
+    }
+    let bundle = KeyBundle {
+        fingerprint: req.fingerprint,
+        identity_key: base64_decode(&req.identity_key)?,
+        one_time_keys,
+        fallback_key: if req.fallback_key.is_empty() {
+            Vec::new()
+        } else {
+            base64_decode(&req.fallback_key)?
+        },
+        signature: if req.signature.is_empty() {
+            Vec::new()
+        } else {
+            base64_decode(&req.signature)?
+        },
+    };
+    state
+        .storage
+        .save_key_bundle(&bundle)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    Ok(StatusCode::OK)
+}
+
+#[derive(Serialize)]
+struct ClaimedKeyResp {
+    identity_key: String,         // base64
+    one_time_key: Option<String>, // base64,消费的 OTK;耗尽则 None
+    fallback_key: Option<String>, // base64,OTK 耗尽时回退
+}
+
+/// claim 目标用户的一个预密钥:取 identity_key + 消费(弹出)一个 one-time key,
+/// 回写减少后的 bundle(防重用)。OTK 耗尽时返回 fallback_key。
+async fn claim_one_time_key(
+    State(state): State<Arc<AppState>>,
+    Path(fingerprint): Path<String>,
+) -> Result<Json<ClaimedKeyResp>, (StatusCode, String)> {
+    let mut bundle = state
+        .storage
+        .get_key_bundle(&fingerprint)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .ok_or((StatusCode::NOT_FOUND, "no key bundle for user".to_string()))?;
+
+    let one_time_key = if bundle.one_time_keys.is_empty() {
+        None
+    } else {
+        // 消费一个 OTK 并回写
+        let otk = bundle.one_time_keys.remove(0);
+        state
+            .storage
+            .save_key_bundle(&bundle)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        Some(base64_encode(&otk))
+    };
+    let fallback_key = if one_time_key.is_none() && !bundle.fallback_key.is_empty() {
+        Some(base64_encode(&bundle.fallback_key))
+    } else {
+        None
+    };
+
+    Ok(Json(ClaimedKeyResp {
+        identity_key: base64_encode(&bundle.identity_key),
+        one_time_key,
+        fallback_key,
+    }))
 }
