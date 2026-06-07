@@ -89,41 +89,68 @@ async fn run_eviction_loop(
 
         if proxy_stores.is_empty() {
             tracing::warn!(
-                "No proxy stores configured, dropping {} expired messages",
+                "No proxy stores configured, re-queuing {} expired messages",
                 expired.len()
             );
+            // 无代收 Store:回写缓存,避免静默丢失(等配置好 proxy 后下个周期重试)。
+            let mut c = cache.lock().await;
+            for (recipient, data) in expired {
+                c.store(&recipient, data);
+            }
             continue;
         }
 
-        // 尝试转投到第一个可用的代收 Store
+        // 逐条转投;只有收到 ACK 才算投递成功,其余(连不上/无 ACK)回写缓存重试,防丢失。
+        let mut remaining: Vec<(String, Vec<u8>)> = expired;
         for proxy_addr in &proxy_stores {
+            if remaining.is_empty() {
+                break;
+            }
             match connect_async(proxy_addr).await {
                 Ok((mut ws, _)) => {
-                    let mut forwarded = 0;
-                    for (_recipient, data) in &expired {
+                    let mut still_pending = Vec::new();
+                    let mut delivered = 0usize;
+                    for (recipient, data) in remaining {
+                        let mut acked = false;
                         if ws.send(WsMessage::Binary(data.clone())).await.is_ok() {
-                            // 等待 ACK
                             if let Some(Ok(WsMessage::Binary(ack_data))) = ws.next().await {
                                 if let Ok(ack) = Frame::decode(ack_data.as_ref()) {
                                     if ack.r#type == nextim_proto::transport::FrameType::Ack as i32
                                     {
-                                        forwarded += 1;
+                                        acked = true;
                                     }
                                 }
                             }
                         }
+                        if acked {
+                            delivered += 1;
+                        } else {
+                            still_pending.push((recipient, data));
+                        }
                     }
-                    tracing::info!(
-                        "Forwarded {forwarded}/{} expired messages to {proxy_addr}",
-                        expired.len()
-                    );
                     ws.close(None).await.ok();
-                    break; // 成功转投，不再尝试其他 proxy
+                    tracing::info!(
+                        "Forwarded {delivered} expired messages to {proxy_addr}, {} still pending",
+                        still_pending.len()
+                    );
+                    remaining = still_pending;
                 }
                 Err(e) => {
                     tracing::warn!("Failed to connect to proxy store {proxy_addr}: {e}");
-                    continue; // 尝试下一个 proxy
+                    // 连不上:remaining 不变,尝试下一个 proxy
                 }
+            }
+        }
+
+        // 仍未成功投递的消息回写缓存,下个周期重试(防静默丢失)。
+        if !remaining.is_empty() {
+            tracing::warn!(
+                "Re-queuing {} undelivered expired messages for retry",
+                remaining.len()
+            );
+            let mut c = cache.lock().await;
+            for (recipient, data) in remaining {
+                c.store(&recipient, data);
             }
         }
     }
