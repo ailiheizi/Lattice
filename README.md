@@ -315,6 +315,7 @@ cargo test -p nextim-tests
 - [实现计划（蓝图主锚点）](docs/plans/2026-03-18-feat-nextim-implementation-plan.md) — 项目结构、核心 Trait、Protobuf schema、开发里程碑
 - [消息完整性 / 哈希 DAG 设计](docs/plans/2026-06-04-design-message-integrity-dag.md) — 签名链、DAG 全序、并发/缺失处理
 - [Matrix 能力差距与路线图](docs/plans/2026-06-06-matrix-gap-and-roadmap.md) — 对比 Matrix 的能力清单、防骚扰准入设计、推进顺序
+- [E2EE 运行时设计](docs/plans/2026-06-07-design-e2ee-runtime.md) — Olm/Megolm 运行时编排、密钥协商/分发/轮换、分阶段路线
 - [架构脑暴](docs/brainstorms/2026-03-17-nextim-architecture-brainstorm.md) — 早期架构设计讨论
 - [API 文档](docs/api.md) — REST / WebSocket 接口概览
 - [部署指南](docs/deployment.md) — 单/多节点部署、systemd、Docker、TLS、备份、排障
