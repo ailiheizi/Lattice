@@ -185,9 +185,19 @@ async fn handle_frame(
         }
 
         Some(frame::Body::SyncRequest(req)) => {
-            // 接收方来取缓存的消息
-            // 用 sender_fingerprint 作为 requester 标识（通过 room_ids[0] 传递）
-            let requester = req.room_ids.first().cloned().unwrap_or_default();
+            // 防越权:请求者必须自证身份(公钥指纹匹配 + 签名),才能取走 fingerprint 的缓存。
+            // 否则任何人填别人的 fingerprint 就能拉走他人缓存。
+            if !matches!(
+                nextim_crypto::sign::verify_sync_request_identity(&req),
+                Ok(true)
+            ) {
+                tracing::warn!(
+                    "Rejecting SyncRequest: identity self-proof failed for {}",
+                    req.requester_fingerprint
+                );
+                return Ok(None);
+            }
+            let requester = req.requester_fingerprint.clone();
 
             let mut c = cache.lock().await;
             let cached = c.drain_for(&requester);
@@ -418,28 +428,36 @@ mod tests {
         let cache = Mutex::new(RelayCache::new(10, 60_000));
         let observability = Arc::new(Mutex::new(PeerObservability::default()));
 
+        // 请求者用真实身份(自证:fingerprint==SHA256(pubkey) + 签名)。
+        let requester_kp = nextim_crypto::identity::MasterKeyPair::generate();
+        let requester_fp = requester_kp.fingerprint();
+        let signing = ed25519_dalek::SigningKey::from_bytes(&requester_kp.signing_key_bytes());
+
         {
             let mut cache = cache.lock().await;
             cache.store(
-                "alice",
-                test_message_frame(1, "msg-1", "alice").encode_to_vec(),
+                &requester_fp,
+                test_message_frame(1, "msg-1", "x").encode_to_vec(),
             );
             cache.store(
-                "alice",
-                test_message_frame(2, "msg-2", "alice").encode_to_vec(),
+                &requester_fp,
+                test_message_frame(2, "msg-2", "x").encode_to_vec(),
             );
             cache.store("bob", test_message_frame(3, "msg-3", "bob").encode_to_vec());
         }
 
+        let req = SyncRequest {
+            since_timestamp: 0,
+            room_ids: vec![],
+            requester_fingerprint: requester_fp.clone(),
+            requester_public_key: requester_kp.verifying_key().as_bytes().to_vec(),
+            signature: nextim_crypto::sign::sign_sync_request(&signing, &requester_fp, 0),
+        };
         let response = handle_frame(
             Frame {
                 seq: 42,
                 r#type: FrameType::SyncRequest as i32,
-                body: Some(frame::Body::SyncRequest(SyncRequest {
-                    since_timestamp: 0,
-                    room_ids: vec!["alice".to_string()],
-                    requester_fingerprint: String::new(),
-                })),
+                body: Some(frame::Body::SyncRequest(req)),
             },
             &cache,
             &observability,
@@ -470,7 +488,42 @@ mod tests {
         assert_eq!(snapshot.total_delivered, 2);
 
         let mut cache = cache.lock().await;
-        assert!(cache.drain_for("alice").is_empty());
+        assert!(cache.drain_for(&requester_fp).is_empty());
         assert_eq!(cache.drain_for("bob").len(), 1);
+    }
+
+    #[tokio::test]
+    async fn handle_frame_sync_request_rejects_unsigned_identity() {
+        // 防越权:无自证签名的 SyncRequest 被拒(返回 None,不 drain)。
+        let cache = Mutex::new(RelayCache::new(10, 60_000));
+        let observability = Arc::new(Mutex::new(PeerObservability::default()));
+        {
+            let mut cache = cache.lock().await;
+            cache.store(
+                "victim-fp",
+                test_message_frame(1, "m", "victim-fp").encode_to_vec(),
+            );
+        }
+        let resp = handle_frame(
+            Frame {
+                seq: 1,
+                r#type: FrameType::SyncRequest as i32,
+                body: Some(frame::Body::SyncRequest(SyncRequest {
+                    since_timestamp: 0,
+                    room_ids: vec![],
+                    requester_fingerprint: "victim-fp".to_string(), // 冒充,无签名
+                    requester_public_key: Vec::new(),
+                    signature: Vec::new(),
+                })),
+            },
+            &cache,
+            &observability,
+        )
+        .await
+        .unwrap();
+        assert!(resp.is_none(), "unsigned sync request must be rejected");
+        // victim 缓存未被取走
+        let mut cache = cache.lock().await;
+        assert_eq!(cache.drain_for("victim-fp").len(), 1);
     }
 }

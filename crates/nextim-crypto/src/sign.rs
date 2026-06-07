@@ -371,6 +371,58 @@ pub fn verify_typing(
         .map_err(|_| SignVerifyError::SignatureVerificationFailed)?;
     Ok(true)
 }
+
+/// 自证 sync 请求者身份(Peer relay 取缓存防越权)。
+/// 校验:(1) SHA-256(public_key) == requester_fingerprint;
+/// (2) signature 是该私钥对 (requester_fingerprint ‖ since_timestamp) 的有效签名。
+/// 通过则证明请求者确实是 requester_fingerprint 本人。
+pub fn verify_sync_request_identity(
+    req: &nextim_proto::transport::SyncRequest,
+) -> Result<bool, SignVerifyError> {
+    // (1) 公钥与声称指纹绑定
+    if crate::identity::compute_fingerprint(&req.requester_public_key) != req.requester_fingerprint
+    {
+        return Err(SignVerifyError::HashMismatch);
+    }
+    // (2) 验签
+    let verifying_key = VerifyingKey::from_bytes(
+        req.requester_public_key
+            .as_slice()
+            .try_into()
+            .map_err(|_| SignVerifyError::InvalidPublicKey)?,
+    )
+    .map_err(|_| SignVerifyError::InvalidPublicKey)?;
+    let mut encoded = Vec::new();
+    append_length_prefixed(&mut encoded, req.requester_fingerprint.as_bytes())?;
+    encoded.extend_from_slice(&req.since_timestamp.to_be_bytes());
+    let hash = sha256(&encoded);
+    let sig_bytes: [u8; 64] = req
+        .signature
+        .as_slice()
+        .try_into()
+        .map_err(|_| SignVerifyError::InvalidSignature)?;
+    let signature = Signature::from_bytes(&sig_bytes);
+    verifying_key
+        .verify(&hash, &signature)
+        .map_err(|_| SignVerifyError::SignatureVerificationFailed)?;
+    Ok(true)
+}
+
+/// 为 sync 请求签名(客户端用)。
+pub fn sign_sync_request(
+    signing_key: &ed25519_dalek::SigningKey,
+    requester_fingerprint: &str,
+    since_timestamp: u64,
+) -> Vec<u8> {
+    use ed25519_dalek::Signer;
+    let mut encoded = Vec::new();
+    let len = (requester_fingerprint.len() as u32).to_be_bytes();
+    encoded.extend_from_slice(&len);
+    encoded.extend_from_slice(requester_fingerprint.as_bytes());
+    encoded.extend_from_slice(&since_timestamp.to_be_bytes());
+    let hash = sha256(&encoded);
+    signing_key.sign(&hash).to_bytes().to_vec()
+}
 pub fn verify_envelope(
     sender_public_key: &[u8],
     envelope: &Envelope,

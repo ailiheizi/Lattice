@@ -63,6 +63,11 @@ message SyncRequest {
     uint64 since_timestamp = 1;
     repeated string room_ids = 2;
     string requester_fingerprint = 3;
+    // 自证身份(Peer relay 取缓存时强制校验,防越权拉取他人缓存):
+    // requester_public_key 的 SHA-256 必须等于 requester_fingerprint,
+    // 且 signature 是该私钥对 (requester_fingerprint ‖ since_timestamp) 的签名。
+    bytes requester_public_key = 4;
+    bytes signature = 5;
 }
 
 message SyncTimelineItem {

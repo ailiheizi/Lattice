@@ -6,6 +6,7 @@ edition.workspace = true
 [dependencies]
 nextim-proto = { path = "../nextim-proto" }
 nextim-core = { path = "../nextim-core" }
+nextim-crypto = { path = "../nextim-crypto" }
 nextim-transport = { path = "../nextim-transport" }
 tokio.workspace = true
 tracing.workspace = true
@@ -24,3 +25,4 @@ serde_json.workspace = true
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
+ed25519-dalek.workspace = true

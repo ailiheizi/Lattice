@@ -283,6 +283,8 @@ async fn real_ws_server_stores_and_syncs_messages() {
             since_timestamp: 0,
             room_ids: vec![room.to_string()],
             requester_fingerprint: String::new(),
+            requester_public_key: Vec::new(),
+            signature: Vec::new(),
         })),
     };
     ws.send(WsMessage::Binary(sync.encode_to_vec()))
@@ -462,6 +464,8 @@ async fn real_ws_server_holds_out_of_order_messages_until_parent_arrives() {
             since_timestamp: 0,
             room_ids: vec![room.to_string()],
             requester_fingerprint: String::new(),
+            requester_public_key: Vec::new(),
+            signature: Vec::new(),
         })),
     };
     ws.send(WsMessage::Binary(sync.encode_to_vec()))
@@ -591,6 +595,8 @@ async fn real_ws_server_stores_and_syncs_room_events() {
             since_timestamp: 0,
             room_ids: vec![room.to_string()],
             requester_fingerprint: String::new(),
+            requester_public_key: Vec::new(),
+            signature: Vec::new(),
         })),
     };
     ws.send(WsMessage::Binary(sync.encode_to_vec()))
@@ -642,6 +648,8 @@ async fn real_ws_server_stores_and_syncs_room_events() {
                 since_timestamp: cursor_after,
                 room_ids: vec![room.to_string()],
                 requester_fingerprint: String::new(),
+                requester_public_key: Vec::new(),
+                signature: Vec::new(),
             })),
         };
         ws.send(WsMessage::Binary(resync.encode_to_vec()))
@@ -747,6 +755,8 @@ async fn real_ws_server_preserves_encrypted_payloads_during_sync() {
             since_timestamp: 0,
             room_ids: vec![room.to_string()],
             requester_fingerprint: String::new(),
+            requester_public_key: Vec::new(),
+            signature: Vec::new(),
         })),
     };
     ws.send(WsMessage::Binary(sync.encode_to_vec()))
@@ -921,6 +931,8 @@ async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
             since_timestamp: 0,
             room_ids: vec![room.to_string()],
             requester_fingerprint: String::new(),
+            requester_public_key: Vec::new(),
+            signature: Vec::new(),
         })),
     };
     ws.send(WsMessage::Binary(sync.encode_to_vec()))
