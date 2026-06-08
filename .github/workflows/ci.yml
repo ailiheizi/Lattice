@@ -27,9 +27,14 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Linux)   sudo apt-get update && sudo apt-get install -y protobuf-compiler ;;
+            macOS)   brew install protobuf ;;
+            Windows) choco install protoc -y ;;
+          esac
+          protoc --version
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -64,9 +69,7 @@ jobs:
           components: clippy
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
       - name: Run clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
@@ -95,9 +98,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
       - name: Build
         run: cargo build --release --workspace
