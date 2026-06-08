@@ -975,3 +975,135 @@ async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
     ws.close(None).await.unwrap();
     server_handle.abort();
 }
+
+/// E3:1v1 端到端 E2EE —— Alice 真实 Olm 加密 → 经真实 Store WS 存储/sync(密文)
+/// → Bob 真实 Olm 解密还原明文。验证 Store 全程只见密文。
+#[tokio::test]
+async fn e2ee_1v1_roundtrip_through_real_store() {
+    use nextim_crypto::session::OlmSessionManager;
+
+    let (fixture, url, server_handle) = spawn_real_store_server().await;
+    let room = "e2ee-room";
+
+    // Alice/Bob 各有签名身份(ed25519)+ Olm 编排器(curve25519 加密)。
+    let alice_identity = MasterKeyPair::generate();
+    let mut alice_olm = OlmSessionManager::new(OlmAccount::new());
+    let mut bob_olm = OlmSessionManager::new(OlmAccount::new());
+
+    // Bob 发布预密钥(模拟 E1 的 /keys/bundle);Alice 取到后建出站会话(模拟 /keys/claim)。
+    let bob_otks = bob_olm.publish_one_time_keys(1);
+    let bob_identity_key = bob_olm.identity_key_bytes();
+    alice_olm
+        .establish_outbound(&bob_identity_key, &bob_otks[0])
+        .unwrap();
+
+    // 房间 + Alice 作为已签名联系人(放行写入)。
+    fixture
+        .state
+        .storage
+        .save_room(&Room {
+            room_id: room.to_string(),
+            name: "e2ee room".to_string(),
+            creator_fingerprint: "creator".to_string(),
+            members: vec![],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    fixture
+        .state
+        .storage
+        .save_contact(&make_signed_contact(&alice_identity, ""))
+        .await
+        .unwrap();
+
+    // Alice 真实加密明文 → EncryptedPayload。
+    let plaintext = b"top secret end-to-end message";
+    let payload = alice_olm.encrypt(&bob_identity_key, plaintext).unwrap();
+    // 密文必须真实区别于明文。
+    assert_ne!(payload.ciphertext, plaintext.to_vec());
+    assert_eq!(payload.encryption_type, EncryptionType::Olm as i32);
+
+    let env = sign_envelope_for_test(
+        &alice_identity,
+        Envelope {
+            msg_id: "e2ee-msg-1".to_string(),
+            sender_fingerprint: alice_identity.fingerprint(),
+            recipient_fingerprint: room.to_string(),
+            timestamp: 1000,
+            signature: vec![],
+            payload_hash: vec![],
+            prev_hashes: Vec::new(),
+            payload: Some(Payload::Encrypted(payload.clone())),
+        },
+    );
+    let (mut ws, _) = connect_async(&url).await.unwrap();
+    let frame = Frame {
+        seq: 1,
+        r#type: FrameType::Message as i32,
+        body: Some(frame::Body::Message(env)),
+    };
+    ws.send(WsMessage::Binary(frame.encode_to_vec()))
+        .await
+        .unwrap();
+    let ack = ws.next().await.unwrap().unwrap();
+    let ack_frame = match ack {
+        WsMessage::Binary(data) => Frame::decode(data.as_ref()).unwrap(),
+        other => panic!("expected binary ack, got {other:?}"),
+    };
+    assert_eq!(ack_frame.r#type, FrameType::Ack as i32);
+
+    // Store 只见密文:无明文 content,密文原样存储。
+    let stored = fixture
+        .state
+        .storage
+        .get_message("e2ee-msg-1")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(stored.encrypted);
+    assert!(stored.content.is_none(), "Store must not see plaintext");
+    let stored_payload = stored.encrypted_payload.as_ref().unwrap();
+    assert_eq!(stored_payload.ciphertext, payload.ciphertext);
+
+    // Bob 经 sync 取回密文。
+    let sync = Frame {
+        seq: 2,
+        r#type: FrameType::SyncRequest as i32,
+        body: Some(frame::Body::SyncRequest(SyncRequest {
+            since_timestamp: 0,
+            room_ids: vec![room.to_string()],
+            requester_fingerprint: String::new(),
+            requester_public_key: Vec::new(),
+            signature: Vec::new(),
+        })),
+    };
+    ws.send(WsMessage::Binary(sync.encode_to_vec()))
+        .await
+        .unwrap();
+    let sync_resp = ws.next().await.unwrap().unwrap();
+    let sync_frame = match sync_resp {
+        WsMessage::Binary(data) => Frame::decode(data.as_ref()).unwrap(),
+        other => panic!("expected binary sync response, got {other:?}"),
+    };
+    let synced_payload = match sync_frame.body {
+        Some(frame::Body::SyncResponse(response)) => {
+            assert_eq!(response.messages.len(), 1);
+            match response.messages[0].payload.as_ref().unwrap() {
+                Payload::Encrypted(e) => e.clone(),
+                other => panic!("expected encrypted payload, got {other:?}"),
+            }
+        }
+        other => panic!("expected sync response body, got {other:?}"),
+    };
+
+    // Bob 真实解密(首条 PreKey → 自动建入站会话),还原明文。
+    let alice_identity_key = alice_olm.identity_key_bytes();
+    let decrypted = bob_olm
+        .decrypt(&alice_identity_key, &synced_payload)
+        .unwrap();
+    assert_eq!(decrypted, plaintext);
+
+    ws.close(None).await.unwrap();
+    server_handle.abort();
+}

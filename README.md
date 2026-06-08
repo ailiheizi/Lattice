@@ -100,7 +100,8 @@ transport  storage   crypto
 | Peer 可观测性（relayed/delivered/error/latency/connections） | ✅ 已落地 | `observability.rs` + `/stats` 等接口 |
 | 真实集成测试（起 WS/REST 服务的端到端） | ✅ 已落地 | `nextim-tests`，7 集成测试 |
 | Android FFI（UniFFI 绑定） | 🟡 部分 | 接口已暴露，8 测试；未做真机 demo 验证 |
-| E2EE 加密原语（Olm / Megolm） | 🟡 部分 | 加密/解密/序列化已实现；客户端↔Store 运行时联调未闭环 |
+| E2EE 加密原语（Olm / Megolm） | 🟡 部分 | 加密/解密/序列化已实现；1v1 Olm 运行时已闭环（见下行），群组 Megolm 运行时未做 |
+| **1v1 E2EE 运行时**（预密钥 claim + Olm 会话编排 + 端到端） | ✅ 已落地 | `/keys/bundle`+`/keys/claim`、`nextim_crypto::session::OlmSessionManager`、端到端测试 `e2ee_1v1_roundtrip_through_real_store`（密文经真实 Store 转发后对端解密，Store 只见密文） |
 | 多设备注册与发现 | 🟡 部分 | 设备注册/列表 REST 端点已落地（`/devices`），同账号设备发现可用；密钥跨设备分发未做 |
 | 多设备密钥同步（重加密/收敛） | 🟠 待收口 | `DeviceManager` + Storage device 接口就绪，缺跨设备密钥分发与冲突收敛 |
 | DHT 节点发现 | 🟡 部分 | WebSocket DHT 服务已接入 store 运行时:节点 publish 签名身份卡片、转发缺地址时 lookup 作 fallback(`enable_dht`)。验签防伪造。未做完整 Kademlia 迭代查询 |
@@ -126,7 +127,7 @@ cd NextIM
 # 编译所有组件
 cargo build --release
 
-# 运行全部测试（117 个）
+# 运行全部测试（187 个）
 cargo test --workspace
 ```
 
@@ -281,7 +282,7 @@ NextIM/
 ## 测试
 
 ```bash
-# 全部测试（116 个，全绿）
+# 全部测试（187 个，全绿）
 cargo test --workspace
 
 # 单个 crate
@@ -295,16 +296,16 @@ cargo test -p nextim-tests
 
 | Crate | 测试数 | 覆盖 |
 |-------|-------|------|
-| nextim-core | 26 | 消息/房间/联系人/设备核心逻辑 |
-| nextim-crypto | 24 | 密钥生成、签名验证、信任、Olm/Megolm |
-| nextim-storage | 19 | CRUD、房间事件、全文搜索 |
-| nextim-peer | 14 | relay、缓存、可观测性 |
-| nextim-discovery | 11 | Kademlia 路由表 |
+| nextim-crypto | 53 | 密钥生成、签名验证、信任、Olm/Megolm、1v1 Olm 会话编排 |
+| nextim-core | 37 | 消息/房间/联系人/设备/DAG/限流核心逻辑 |
+| nextim-storage | 22 | CRUD、房间事件、密钥包、全文搜索 |
+| nextim-peer | 18 | relay、缓存、可观测性、转投重试 |
+| nextim-store | 18 | frame 处理、转发、房间事件、REST 路由 |
+| nextim-tests | 15 | 跨节点 WS/REST 端到端 + 多设备 + 1v1 E2EE |
+| nextim-discovery | 13 | Kademlia 路由表、身份卡片签名 |
 | nextim-ffi | 8 | FFI 绑定 |
-| nextim-tests | 8 | 跨节点 WS/REST 端到端 + 多设备 |
-| nextim-store | 4 | frame 处理、转发、房间事件 |
 | nextim-transport | 3 | WebSocket 编解码 |
-| **总计** | **117** | 单元 + 集成 |
+| **总计** | **187** | 单元 + 集成 |
 
 > 集成测试（`nextim-tests`）会真实启动 WebSocket 服务器和 REST 路由，验证消息存储/同步、房间事件回放、加密载荷透传、跨 Store 转发等链路。
 
