@@ -7,7 +7,7 @@ edition.workspace = true
 lattice-proto = { path = "../lattice-proto" }
 lattice-core = { path = "../lattice-core" }
 lattice-crypto = { path = "../lattice-crypto" }
-lattice-transport = { path = "../lattice-transport" }
+lattice-transport-ws = { path = "../lattice-transport-ws" }
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

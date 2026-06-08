@@ -1,5 +1,5 @@
 [package]
-name = "lattice-transport"
+name = "lattice-transport-ws"
 version.workspace = true
 edition.workspace = true
 

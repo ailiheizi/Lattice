@@ -1354,7 +1354,7 @@ dependencies = [
  "lattice-proto",
  "lattice-search-tantivy",
  "lattice-storage-sqlite",
- "lattice-transport",
+ "lattice-transport-ws",
  "prost",
  "tempfile",
  "thiserror 2.0.18",
@@ -1374,7 +1374,7 @@ dependencies = [
  "lattice-core",
  "lattice-crypto",
  "lattice-proto",
- "lattice-transport",
+ "lattice-transport-ws",
  "prost",
  "rand",
  "serde",
@@ -1441,7 +1441,7 @@ dependencies = [
  "lattice-proto",
  "lattice-search-tantivy",
  "lattice-storage-sqlite",
- "lattice-transport",
+ "lattice-transport-ws",
  "prost",
  "serde",
  "serde_json",
@@ -1467,7 +1467,7 @@ dependencies = [
  "lattice-search-tantivy",
  "lattice-storage-sqlite",
  "lattice-store",
- "lattice-transport",
+ "lattice-transport-ws",
  "prost",
  "reqwest",
  "serde",
@@ -1481,7 +1481,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "lattice-transport"
+name = "lattice-transport-ws"
 version = "0.1.0"
 dependencies = [
  "bytes",

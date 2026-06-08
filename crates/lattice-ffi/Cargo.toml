@@ -9,7 +9,7 @@ crate-type = ["cdylib", "staticlib", "lib"]
 [dependencies]
 lattice-core = { path = "../lattice-core" }
 lattice-crypto = { path = "../lattice-crypto" }
-lattice-transport = { path = "../lattice-transport" }
+lattice-transport-ws = { path = "../lattice-transport-ws" }
 lattice-storage-sqlite = { path = "../lattice-storage-sqlite" }
 lattice-search-tantivy = { path = "../lattice-search-tantivy" }
 lattice-proto = { path = "../lattice-proto" }

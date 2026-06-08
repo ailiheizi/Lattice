@@ -4,7 +4,7 @@ members = [
     "crates/lattice-proto",
     "crates/lattice-crypto",
     "crates/lattice-core",
-    "crates/lattice-transport",
+    "crates/lattice-transport-ws",
     "crates/lattice-storage-sqlite",
     "crates/lattice-search-tantivy",
     "crates/lattice-store",

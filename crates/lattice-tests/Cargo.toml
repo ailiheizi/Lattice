@@ -9,7 +9,7 @@ lattice-store = { path = "../lattice-store" }
 lattice-proto = { path = "../lattice-proto" }
 lattice-core = { path = "../lattice-core" }
 lattice-crypto = { path = "../lattice-crypto" }
-lattice-transport = { path = "../lattice-transport" }
+lattice-transport-ws = { path = "../lattice-transport-ws" }
 lattice-storage-sqlite = { path = "../lattice-storage-sqlite" }
 lattice-search-tantivy = { path = "../lattice-search-tantivy" }
 tokio.workspace = true
