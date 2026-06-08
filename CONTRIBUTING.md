@@ -1,6 +1,6 @@
-# Contributing to NextIM
+# Contributing to Lattice
 
-感谢你对 NextIM 项目的关注！我们欢迎各种形式的贡献，包括但不限于：
+感谢你对 Lattice 项目的关注！我们欢迎各种形式的贡献，包括但不限于：
 
 - 报告 Bug
 - 提出新功能建议
@@ -50,7 +50,7 @@
 ## 环境信息
 - OS: Windows 11
 - Rust: 1.75.0
-- NextIM: 0.1.0
+- Lattice: 0.1.0
 
 ## 日志输出
 ```
@@ -74,8 +74,8 @@
 1. **Fork 仓库**
    ```bash
    # 在 GitHub 上 Fork 本仓库
-   git clone https://github.com/your-username/NextIM.git
-   cd NextIM
+   git clone https://github.com/your-username/Lattice.git
+   cd Lattice
    ```
 
 2. **创建分支**
@@ -183,7 +183,7 @@ Closes #123
    /// # Examples
    ///
    /// ```
-   /// use nextim_crypto::identity::MasterKeyPair;
+   /// use lattice_crypto::identity::MasterKeyPair;
    ///
    /// let keypair = MasterKeyPair::generate();
    /// let fingerprint = keypair.fingerprint();
@@ -302,8 +302,8 @@ Closes #[issue number]
 ### 克隆仓库
 
 ```bash
-git clone https://github.com/yourusername/NextIM.git
-cd NextIM
+git clone https://github.com/yourusername/Lattice.git
+cd Lattice
 ```
 
 ### 构建项目
@@ -323,7 +323,7 @@ cargo build --release
 cargo test --workspace
 
 # 运行特定 crate 的测试
-cargo test -p nextim-crypto
+cargo test -p lattice-crypto
 
 # 运行特定测试
 cargo test test_name
@@ -352,27 +352,27 @@ cargo fmt --all -- --check
 
 ```bash
 # 启用日志
-RUST_LOG=debug cargo run --bin nextim-store
+RUST_LOG=debug cargo run --bin lattice-store
 
 # 使用 rust-gdb 调试
-rust-gdb target/debug/nextim-store
+rust-gdb target/debug/lattice-store
 ```
 
 ## 项目结构
 
 ```
-nextim/
+lattice/
 ├── crates/              # Rust crates
-│   ├── nextim-proto/    # Protobuf 定义
-│   ├── nextim-crypto/   # 加密层
-│   ├── nextim-core/     # 核心逻辑
-│   ├── nextim-transport/# 传输层
-│   ├── nextim-storage/  # 存储层
-│   ├── nextim-discovery/# 节点发现
-│   ├── nextim-store/    # Store 节点
-│   ├── nextim-peer/     # Peer 节点
-│   ├── nextim-ffi/      # FFI 绑定
-│   └── nextim-tests/    # 集成测试
+│   ├── lattice-proto/    # Protobuf 定义
+│   ├── lattice-crypto/   # 加密层
+│   ├── lattice-core/     # 核心逻辑
+│   ├── lattice-transport/# 传输层
+│   ├── lattice-storage/  # 存储层
+│   ├── lattice-discovery/# 节点发现
+│   ├── lattice-store/    # Store 节点
+│   ├── lattice-peer/     # Peer 节点
+│   ├── lattice-ffi/      # FFI 绑定
+│   └── lattice-tests/    # 集成测试
 ├── proto/               # Protobuf 源文件
 ├── web/                 # Web 前端
 ├── android/             # Android demo
@@ -396,7 +396,7 @@ nextim/
 如果你有任何问题：
 
 - 查看 [文档](./docs/)
-- 搜索 [已有 Issues](https://github.com/yourusername/NextIM/issues)
+- 搜索 [已有 Issues](https://github.com/yourusername/Lattice/issues)
 - 创建新的 Issue
 - 加入讨论区
 

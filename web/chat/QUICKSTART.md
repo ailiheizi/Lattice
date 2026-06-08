@@ -1,4 +1,4 @@
-# NextIM Web Chat - Quick Start Guide
+# Lattice Web Chat - Quick Start Guide
 
 ## 快速开始
 
@@ -8,10 +8,10 @@
 
 ```bash
 # 启动 Store 服务（默认端口 9100）
-cargo run --bin nextim-store
+cargo run --bin lattice-store
 
 # 或使用配置文件
-cargo run --bin nextim-store -- --config store.toml
+cargo run --bin lattice-store -- --config store.toml
 ```
 
 ### 2. 访问 Web 界面
@@ -21,7 +21,7 @@ cargo run --bin nextim-store -- --config store.toml
 #### 方式 A：直接打开文件（推荐用于开发）
 
 ```
-file:///D:/windows/code/project/NextIM/web/chat/index.html
+file:///D:/windows/code/project/Lattice/web/chat/index.html
 ```
 
 #### 方式 B：使用 HTTP 服务器（推荐用于测试）
@@ -76,7 +76,7 @@ http://localhost:8080
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Header: NextIM | Status | User Info | Actions          │
+│  Header: Lattice | Status | User Info | Actions          │
 ├──────────┬──────────────────────────────┬───────────────┤
 │          │  Chat Header                 │               │
 │  Sidebar │  ┌────────────────────────┐  │  Settings     │
@@ -119,7 +119,7 @@ http://localhost:8080
 
 1. **启动 Store 服务**（只需一个）
    ```bash
-   cargo run --bin nextim-store
+   cargo run --bin lattice-store
    ```
 
 2. **打开多个浏览器窗口**
@@ -144,7 +144,7 @@ http://localhost:8080
 1. **确保 Store 服务可访问**
    ```bash
    # 绑定到所有接口
-   cargo run --bin nextim-store -- --bind 0.0.0.0:9100
+   cargo run --bin lattice-store -- --bind 0.0.0.0:9100
    ```
 
 2. **在其他机器上访问**
@@ -215,10 +215,10 @@ http://localhost:8080
 1. 开发者工具 → Application 标签
 2. 左侧 Storage → Local Storage
 3. 查看保存的设置：
-   - `nextim-api-url`
-   - `nextim-username`
-   - `nextim-theme`
-   - `nextim-settings`
+   - `lattice-api-url`
+   - `lattice-username`
+   - `lattice-theme`
+   - `lattice-settings`
 
 ### 清除缓存
 

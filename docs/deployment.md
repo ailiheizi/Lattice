@@ -1,6 +1,6 @@
-# NextIM 部署指南
+# Lattice 部署指南
 
-本文档介绍如何在生产环境中部署 NextIM 系统。
+本文档介绍如何在生产环境中部署 Lattice 系统。
 
 ## 目录
 
@@ -106,27 +106,27 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/yourusername/NextIM.git
-cd NextIM
+git clone https://github.com/yourusername/Lattice.git
+cd Lattice
 
 # 编译 release 版本
-cargo build --release --bin nextim-store
+cargo build --release --bin lattice-store
 
 # 二进制文件位于
-ls -lh target/release/nextim-store
+ls -lh target/release/lattice-store
 ```
 
 ### 2. 创建配置文件
 
 ```bash
 # 创建配置目录
-mkdir -p /etc/nextim
+mkdir -p /etc/lattice
 
 # 创建配置文件
-cat > /etc/nextim/store.toml <<EOF
+cat > /etc/lattice/store.toml <<EOF
 [server]
 listen_addr = "0.0.0.0:9100"
-data_dir = "/var/lib/nextim/store"
+data_dir = "/var/lib/lattice/store"
 
 [identity]
 display_name = "My Store Node"
@@ -143,12 +143,12 @@ EOF
 
 ```bash
 # 创建数据目录
-sudo mkdir -p /var/lib/nextim/store
-sudo chown -R nextim:nextim /var/lib/nextim
+sudo mkdir -p /var/lib/lattice/store
+sudo chown -R lattice:lattice /var/lib/lattice
 
 # 创建日志目录
-sudo mkdir -p /var/log/nextim
-sudo chown -R nextim:nextim /var/log/nextim
+sudo mkdir -p /var/log/lattice
+sudo chown -R lattice:lattice /var/log/lattice
 ```
 
 ### 4. 使用 systemd 管理服务
@@ -156,17 +156,17 @@ sudo chown -R nextim:nextim /var/log/nextim
 创建 systemd 服务文件：
 
 ```bash
-sudo cat > /etc/systemd/system/nextim-store.service <<EOF
+sudo cat > /etc/systemd/system/lattice-store.service <<EOF
 [Unit]
-Description=NextIM Store Node
+Description=Lattice Store Node
 After=network.target
 
 [Service]
 Type=simple
-User=nextim
-Group=nextim
-WorkingDirectory=/var/lib/nextim
-ExecStart=/usr/local/bin/nextim-store --config /etc/nextim/store.toml
+User=lattice
+Group=lattice
+WorkingDirectory=/var/lib/lattice
+ExecStart=/usr/local/bin/lattice-store --config /etc/lattice/store.toml
 Restart=on-failure
 RestartSec=5s
 
@@ -175,7 +175,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/nextim /var/log/nextim
+ReadWritePaths=/var/lib/lattice /var/log/lattice
 
 # 资源限制
 LimitNOFILE=65536
@@ -184,7 +184,7 @@ LimitNPROC=512
 # 日志
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=nextim-store
+SyslogIdentifier=lattice-store
 
 [Install]
 WantedBy=multi-user.target
@@ -198,16 +198,16 @@ EOF
 sudo systemctl daemon-reload
 
 # 启动服务
-sudo systemctl start nextim-store
+sudo systemctl start lattice-store
 
 # 设置开机自启
-sudo systemctl enable nextim-store
+sudo systemctl enable lattice-store
 
 # 查看状态
-sudo systemctl status nextim-store
+sudo systemctl status lattice-store
 
 # 查看日志
-sudo journalctl -u nextim-store -f
+sudo journalctl -u lattice-store -f
 ```
 
 ### 5. 使用 Docker 部署
@@ -219,7 +219,7 @@ FROM rust:1.75 as builder
 
 WORKDIR /app
 COPY . .
-RUN cargo build --release --bin nextim-store
+RUN cargo build --release --bin lattice-store
 
 FROM debian:bookworm-slim
 
@@ -227,34 +227,34 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/target/release/nextim-store /usr/local/bin/
+COPY --from=builder /app/target/release/lattice-store /usr/local/bin/
 
-RUN useradd -m -u 1000 nextim && \
-    mkdir -p /var/lib/nextim/store && \
-    chown -R nextim:nextim /var/lib/nextim
+RUN useradd -m -u 1000 lattice && \
+    mkdir -p /var/lib/lattice/store && \
+    chown -R lattice:lattice /var/lib/lattice
 
-USER nextim
-WORKDIR /var/lib/nextim
+USER lattice
+WORKDIR /var/lib/lattice
 
 EXPOSE 9100
 
-CMD ["nextim-store", "--config", "/etc/nextim/store.toml"]
+CMD ["lattice-store", "--config", "/etc/lattice/store.toml"]
 ```
 
 构建和运行：
 
 ```bash
 # 构建镜像
-docker build -t nextim-store:latest .
+docker build -t lattice-store:latest .
 
 # 运行容器
 docker run -d \
-  --name nextim-store \
+  --name lattice-store \
   -p 9100:9100 \
-  -v /etc/nextim:/etc/nextim:ro \
-  -v /var/lib/nextim:/var/lib/nextim \
+  -v /etc/lattice:/etc/lattice:ro \
+  -v /var/lib/lattice:/var/lib/lattice \
   --restart unless-stopped \
-  nextim-store:latest
+  lattice-store:latest
 ```
 
 使用 docker-compose：
@@ -264,13 +264,13 @@ version: '3.8'
 
 services:
   store:
-    image: nextim-store:latest
-    container_name: nextim-store
+    image: lattice-store:latest
+    container_name: lattice-store
     ports:
       - "9100:9100"
     volumes:
-      - ./config:/etc/nextim:ro
-      - ./data:/var/lib/nextim
+      - ./config:/etc/lattice:ro
+      - ./data:/var/lib/lattice
     restart: unless-stopped
     environment:
       - RUST_LOG=info
@@ -286,13 +286,13 @@ services:
 ### 1. 编译二进制
 
 ```bash
-cargo build --release --bin nextim-peer
+cargo build --release --bin lattice-peer
 ```
 
 ### 2. 创建配置文件
 
 ```bash
-cat > /etc/nextim/peer.toml <<EOF
+cat > /etc/lattice/peer.toml <<EOF
 [server]
 listen_addr = "0.0.0.0:9200"
 
@@ -311,17 +311,17 @@ EOF
 ### 3. 使用 systemd 管理服务
 
 ```bash
-sudo cat > /etc/systemd/system/nextim-peer.service <<EOF
+sudo cat > /etc/systemd/system/lattice-peer.service <<EOF
 [Unit]
-Description=NextIM Peer Relay Node
+Description=Lattice Peer Relay Node
 After=network.target
 
 [Service]
 Type=simple
-User=nextim
-Group=nextim
-WorkingDirectory=/var/lib/nextim
-ExecStart=/usr/local/bin/nextim-peer --config /etc/nextim/peer.toml
+User=lattice
+Group=lattice
+WorkingDirectory=/var/lib/lattice
+ExecStart=/usr/local/bin/lattice-peer --config /etc/lattice/peer.toml
 Restart=on-failure
 RestartSec=5s
 
@@ -335,15 +335,15 @@ LimitNPROC=512
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=nextim-peer
+SyslogIdentifier=lattice-peer
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl start nextim-peer
-sudo systemctl enable nextim-peer
+sudo systemctl start lattice-peer
+sudo systemctl enable lattice-peer
 ```
 
 ## 安全配置
@@ -367,7 +367,7 @@ sudo firewall-cmd --reload
 使用 nginx 作为反向代理：
 
 ```nginx
-upstream nextim_store {
+upstream lattice_store {
     server 127.0.0.1:9100;
 }
 
@@ -381,7 +381,7 @@ server {
     ssl_ciphers HIGH:!aNULL:!MD5;
 
     location / {
-        proxy_pass http://nextim_store;
+        proxy_pass http://lattice_store;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -406,7 +406,7 @@ limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
 
 location /api/ {
     limit_req zone=api_limit burst=20 nodelay;
-    proxy_pass http://nextim_store;
+    proxy_pass http://lattice_store;
 }
 ```
 
@@ -450,7 +450,7 @@ sysctl -p
 ```yaml
 # prometheus.yml
 scrape_configs:
-  - job_name: 'nextim-store'
+  - job_name: 'lattice-store'
     static_configs:
       - targets: ['localhost:9100']
 ```
@@ -475,18 +475,18 @@ level = "info"  # trace, debug, info, warn, error
 配置 logrotate：
 
 ```bash
-cat > /etc/logrotate.d/nextim <<EOF
-/var/log/nextim/*.log {
+cat > /etc/logrotate.d/lattice <<EOF
+/var/log/lattice/*.log {
     daily
     rotate 7
     compress
     delaycompress
     missingok
     notifempty
-    create 0640 nextim nextim
+    create 0640 lattice lattice
     sharedscripts
     postrotate
-        systemctl reload nextim-store
+        systemctl reload lattice-store
     endscript
 }
 EOF
@@ -510,8 +510,8 @@ wscat -c ws://localhost:9100
 #!/bin/bash
 # backup.sh
 
-BACKUP_DIR="/backup/nextim"
-DATA_DIR="/var/lib/nextim/store"
+BACKUP_DIR="/backup/lattice"
+DATA_DIR="/var/lib/lattice/store"
 DATE=$(date +%Y%m%d_%H%M%S)
 
 # 创建备份目录
@@ -537,7 +537,7 @@ echo "Backup completed: $DATE"
 crontab -e
 
 # 每天凌晨 2 点备份
-0 2 * * * /usr/local/bin/backup.sh >> /var/log/nextim/backup.log 2>&1
+0 2 * * * /usr/local/bin/backup.sh >> /var/log/lattice/backup.log 2>&1
 ```
 
 ### 2. 数据恢复
@@ -547,10 +547,10 @@ crontab -e
 # restore.sh
 
 BACKUP_FILE=$1
-DATA_DIR="/var/lib/nextim/store"
+DATA_DIR="/var/lib/lattice/store"
 
 # 停止服务
-systemctl stop nextim-store
+systemctl stop lattice-store
 
 # 恢复数据库
 cp $BACKUP_FILE $DATA_DIR/store.db
@@ -559,7 +559,7 @@ cp $BACKUP_FILE $DATA_DIR/store.db
 tar -xzf ${BACKUP_FILE%.db}.tar.gz -C $DATA_DIR
 
 # 启动服务
-systemctl start nextim-store
+systemctl start lattice-store
 
 echo "Restore completed"
 ```
@@ -575,7 +575,7 @@ echo "Restore completed"
 **排查步骤：**
 ```bash
 # 检查服务状态
-systemctl status nextim-store
+systemctl status lattice-store
 
 # 检查端口监听
 netstat -tlnp | grep 9100
@@ -584,7 +584,7 @@ netstat -tlnp | grep 9100
 sudo ufw status
 
 # 查看日志
-journalctl -u nextim-store -n 100
+journalctl -u lattice-store -n 100
 ```
 
 #### 2. 消息发送失败
@@ -594,13 +594,13 @@ journalctl -u nextim-store -n 100
 **排查步骤：**
 ```bash
 # 检查数据库
-sqlite3 /var/lib/nextim/store/store.db "SELECT COUNT(*) FROM messages;"
+sqlite3 /var/lib/lattice/store/store.db "SELECT COUNT(*) FROM messages;"
 
 # 检查磁盘空间
-df -h /var/lib/nextim
+df -h /var/lib/lattice
 
 # 检查日志
-tail -f /var/log/nextim/store.log
+tail -f /var/log/lattice/store.log
 ```
 
 #### 3. 性能问题
@@ -610,16 +610,16 @@ tail -f /var/log/nextim/store.log
 **排查步骤：**
 ```bash
 # 检查 CPU 使用率
-top -p $(pgrep nextim-store)
+top -p $(pgrep lattice-store)
 
 # 检查内存使用
-ps aux | grep nextim-store
+ps aux | grep lattice-store
 
 # 检查数据库大小
-du -sh /var/lib/nextim/store/store.db
+du -sh /var/lib/lattice/store/store.db
 
 # 优化数据库
-sqlite3 /var/lib/nextim/store/store.db "VACUUM;"
+sqlite3 /var/lib/lattice/store/store.db "VACUUM;"
 ```
 
 ### 调试模式
@@ -628,10 +628,10 @@ sqlite3 /var/lib/nextim/store/store.db "VACUUM;"
 
 ```bash
 # 临时启用
-RUST_LOG=debug systemctl restart nextim-store
+RUST_LOG=debug systemctl restart lattice-store
 
 # 永久启用
-# 修改 /etc/nextim/store.toml
+# 修改 /etc/lattice/store.toml
 [log]
 level = "debug"
 ```
@@ -647,32 +647,32 @@ level = "debug"
 ### 2. 停止服务
 
 ```bash
-systemctl stop nextim-store
+systemctl stop lattice-store
 ```
 
 ### 3. 更新二进制
 
 ```bash
 # 下载新版本
-wget https://github.com/yourusername/NextIM/releases/download/v0.2.0/nextim-store
+wget https://github.com/yourusername/Lattice/releases/download/v0.2.0/lattice-store
 
 # 替换二进制
-sudo mv nextim-store /usr/local/bin/
-sudo chmod +x /usr/local/bin/nextim-store
+sudo mv lattice-store /usr/local/bin/
+sudo chmod +x /usr/local/bin/lattice-store
 ```
 
 ### 4. 检查配置
 
 ```bash
 # 检查配置文件兼容性
-nextim-store --config /etc/nextim/store.toml --check-config
+lattice-store --config /etc/lattice/store.toml --check-config
 ```
 
 ### 5. 启动服务
 
 ```bash
-systemctl start nextim-store
-systemctl status nextim-store
+systemctl start lattice-store
+systemctl status lattice-store
 ```
 
 ## 生产环境检查清单

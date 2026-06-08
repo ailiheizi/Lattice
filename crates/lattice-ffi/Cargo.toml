@@ -1,0 +1,26 @@
+[package]
+name = "lattice-ffi"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[dependencies]
+lattice-core = { path = "../lattice-core" }
+lattice-crypto = { path = "../lattice-crypto" }
+lattice-transport = { path = "../lattice-transport" }
+lattice-storage = { path = "../lattice-storage" }
+lattice-proto = { path = "../lattice-proto" }
+tokio.workspace = true
+uniffi.workspace = true
+prost.workspace = true
+thiserror.workspace = true
+ed25519-dalek.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[build-dependencies]
+uniffi = { workspace = true, features = ["build"] }

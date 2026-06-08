@@ -1,4 +1,4 @@
-# NextIM Store 管理面板 - 更新日志
+# Lattice Store 管理面板 - 更新日志
 
 ## [1.0.0] - 2026-03-22
 
@@ -159,7 +159,7 @@
 
 ## 贡献者
 
-- NextIM Team
+- Lattice Team
 
 ## 许可证
 

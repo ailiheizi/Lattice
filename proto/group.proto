@@ -1,5 +1,5 @@
 syntax = "proto3";
-package nextim.group;
+package lattice.group;
 
 message Room {
     string room_id = 1;

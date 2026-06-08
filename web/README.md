@@ -1,6 +1,6 @@
-# NextIM Web Client
+# Lattice Web Client
 
-现代化的 NextIM Web 聊天界面。
+现代化的 Lattice Web 聊天界面。
 
 ## 功能特性
 
@@ -38,7 +38,7 @@
 
 ```bash
 # 启动 Store 服务
-cargo run --bin nextim-store
+cargo run --bin lattice-store
 
 # 默认端口：
 # - WebSocket: 9100
@@ -76,7 +76,7 @@ npx http-server web -p 8080
 ## 界面说明
 
 ### 顶部导航栏
-- **NextIM** - 应用标题
+- **Lattice** - 应用标题
 - **API OK/Failed** - REST API 连接状态
 - **WS Live/Off** - WebSocket 连接状态
 - **☰** - 切换侧边栏显示/隐藏（移动端）
@@ -170,4 +170,4 @@ npx http-server web -p 8080
 
 ## 许可证
 
-与 NextIM 项目保持一致。
+与 Lattice 项目保持一致。

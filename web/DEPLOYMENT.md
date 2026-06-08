@@ -1,12 +1,12 @@
-# NextIM Web Client - Deployment Guide
+# Lattice Web Client - Deployment Guide
 
 ## Overview
 
-This guide covers deploying the NextIM Web Client in various environments.
+This guide covers deploying the Lattice Web Client in various environments.
 
 ## Prerequisites
 
-- NextIM Store node running (WebSocket on port 9100, REST API on port 9101)
+- Lattice Store node running (WebSocket on port 9100, REST API on port 9101)
 - Web server (Apache, Nginx, or Python HTTP server)
 - Modern web browser (Chrome 90+, Firefox 88+, Safari 14+)
 
@@ -18,7 +18,7 @@ Simplest method for local development and testing.
 
 ```bash
 # Open directly in browser
-file:///path/to/NextIM/web/index.html
+file:///path/to/Lattice/web/index.html
 ```
 
 **Pros:**
@@ -37,7 +37,7 @@ Built-in Python server for quick testing.
 
 ```bash
 # Navigate to web directory
-cd /path/to/NextIM/web
+cd /path/to/Lattice/web
 
 # Start server (Python 3)
 python -m http.server 8080
@@ -83,7 +83,7 @@ sudo systemctl enable httpd
 
 1. Copy web files to Apache document root:
 ```bash
-sudo cp -r /path/to/NextIM/web /var/www/html/nextim
+sudo cp -r /path/to/Lattice/web /var/www/html/lattice
 ```
 
 2. Enable required modules:
@@ -102,7 +102,7 @@ sudo systemctl restart apache2
    - Security headers
    - Directory index
 
-4. Access at `http://your-server/nextim/`
+4. Access at `http://your-server/lattice/`
 
 **Pros:**
 - Production-ready
@@ -139,19 +139,19 @@ sudo systemctl enable nginx
 
 1. Copy web files:
 ```bash
-sudo mkdir -p /var/www/nextim
-sudo cp -r /path/to/NextIM/web/* /var/www/nextim/
+sudo mkdir -p /var/www/lattice
+sudo cp -r /path/to/Lattice/web/* /var/www/lattice/
 ```
 
 2. Use the included `nginx.conf`:
 ```bash
-sudo cp /path/to/NextIM/web/nginx.conf /etc/nginx/sites-available/nextim
-sudo ln -s /etc/nginx/sites-available/nextim /etc/nginx/sites-enabled/
+sudo cp /path/to/Lattice/web/nginx.conf /etc/nginx/sites-available/lattice
+sudo ln -s /etc/nginx/sites-available/lattice /etc/nginx/sites-enabled/
 ```
 
 3. Update paths in nginx.conf:
 ```nginx
-root /var/www/nextim;
+root /var/www/lattice;
 ```
 
 4. Test and reload:
@@ -201,13 +201,13 @@ CMD ["nginx", "-g", "daemon off;"]
 
 ```bash
 # Build image
-docker build -t nextim-web:latest .
+docker build -t lattice-web:latest .
 
 # Run container
 docker run -d \
-  --name nextim-web \
+  --name lattice-web \
   -p 8080:80 \
-  nextim-web:latest
+  lattice-web:latest
 
 # Access at http://localhost:8080
 ```

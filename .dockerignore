@@ -1,4 +1,4 @@
-# Docker ignore file for NextIM
+# Docker ignore file for Lattice
 
 # Git
 .git
@@ -36,8 +36,8 @@ test-data/
 tmp/
 
 # Configuration files (use examples)
-nextim-store.toml
-nextim-peer.toml
+lattice-store.toml
+lattice-peer.toml
 
 # Android
 android/

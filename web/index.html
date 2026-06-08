@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NextIM Web Client</title>
+<title>Lattice Web Client</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -190,7 +190,7 @@ body.light-theme {
 <body>
 
 <div class="header">
-  <h1>NextIM</h1>
+  <h1>Lattice</h1>
   <span id="api-status" class="status disconnected">API Off</span>
   <span id="ws-status" class="status disconnected">WS Off</span>
   <span style="flex:1"></span>
@@ -402,7 +402,7 @@ let settings = {
 
 // Load settings from localStorage
 function loadSettings() {
-  const saved = localStorage.getItem('nextim-settings');
+  const saved = localStorage.getItem('lattice-settings');
   if (saved) {
     settings = { ...settings, ...JSON.parse(saved) };
     if (settings.theme === 'light') {
@@ -414,7 +414,7 @@ function loadSettings() {
 }
 
 function saveSettings() {
-  localStorage.setItem('nextim-settings', JSON.stringify(settings));
+  localStorage.setItem('lattice-settings', JSON.stringify(settings));
 }
 
 function updateSettingsUI() {
@@ -461,7 +461,7 @@ async function connect() {
     if (pollInterval) clearInterval(pollInterval);
     pollInterval = setInterval(pollMessages, 5000);
 
-    showNotification('success', 'Connected', 'Successfully connected to NextIM Store');
+    showNotification('success', 'Connected', 'Successfully connected to Lattice Store');
   } catch (e) {
     document.getElementById('api-status').textContent = 'Failed';
     document.getElementById('api-status').className = 'status disconnected';

@@ -1,6 +1,6 @@
-# NextIM Store 管理面板
+# Lattice Store 管理面板
 
-现代化的 NextIM Store 管理界面，提供实时数据监控和管理功能。
+现代化的 Lattice Store 管理界面，提供实时数据监控和管理功能。
 
 ## 功能特性
 
@@ -19,7 +19,7 @@
 
 ## 快速开始
 
-1. 确保 NextIM Store 服务运行在 `http://localhost:9100`
+1. 确保 Lattice Store 服务运行在 `http://localhost:9100`
 
 2. 使用任意 HTTP 服务器启动管理面板：
 
@@ -135,4 +135,4 @@ store-admin/
 
 ## 许可证
 
-与 NextIM 项目相同
+与 Lattice 项目相同

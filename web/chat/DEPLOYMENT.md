@@ -1,4 +1,4 @@
-# NextIM Web Chat - 部署指南
+# Lattice Web Chat - 部署指南
 
 ## 部署方式
 
@@ -9,7 +9,7 @@
 
 ```bash
 # 直接在浏览器中打开
-file:///D:/windows/code/project/NextIM/web/chat/index.html
+file:///D:/windows/code/project/Lattice/web/chat/index.html
 ```
 
 ### 方式 2: Python HTTP 服务器（推荐）
@@ -18,7 +18,7 @@ file:///D:/windows/code/project/NextIM/web/chat/index.html
 **缺点**: 不适合生产环境
 
 ```bash
-cd D:/windows/code/project/NextIM/web/chat
+cd D:/windows/code/project/Lattice/web/chat
 python -m http.server 8080
 
 # 访问
@@ -35,7 +35,7 @@ http://localhost:8080
 npm install -g http-server
 
 # 启动服务器
-cd D:/windows/code/project/NextIM/web/chat
+cd D:/windows/code/project/Lattice/web/chat
 http-server -p 8080 -c-1
 
 # 访问
@@ -52,7 +52,7 @@ http://localhost:8080
 ```nginx
 server {
     listen 80;
-    server_name chat.nextim.example.com;
+    server_name chat.lattice.example.com;
 
     # 重定向到 HTTPS
     return 301 https://$server_name$request_uri;
@@ -60,7 +60,7 @@ server {
 
 server {
     listen 443 ssl http2;
-    server_name chat.nextim.example.com;
+    server_name chat.lattice.example.com;
 
     # SSL 证书
     ssl_certificate /path/to/cert.pem;
@@ -76,7 +76,7 @@ server {
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:9100 http://localhost:9100; img-src 'self' data:;" always;
 
     # 根目录
-    root /var/www/nextim/web/chat;
+    root /var/www/lattice/web/chat;
     index index.html;
 
     # 静态文件缓存
@@ -125,12 +125,12 @@ server {
 
 ```apache
 <VirtualHost *:80>
-    ServerName chat.nextim.example.com
-    Redirect permanent / https://chat.nextim.example.com/
+    ServerName chat.lattice.example.com
+    Redirect permanent / https://chat.lattice.example.com/
 </VirtualHost>
 
 <VirtualHost *:443>
-    ServerName chat.nextim.example.com
+    ServerName chat.lattice.example.com
 
     # SSL 配置
     SSLEngine on
@@ -138,9 +138,9 @@ server {
     SSLCertificateKeyFile /path/to/key.pem
 
     # 文档根目录
-    DocumentRoot /var/www/nextim/web/chat
+    DocumentRoot /var/www/lattice/web/chat
 
-    <Directory /var/www/nextim/web/chat>
+    <Directory /var/www/lattice/web/chat>
         Options -Indexes +FollowSymLinks
         AllowOverride All
         Require all granted
@@ -262,8 +262,8 @@ docker-compose down
 
 ```bash
 # 1. 启动 Store 服务
-cd D:/windows/code/project/NextIM
-cargo run --bin nextim-store
+cd D:/windows/code/project/Lattice
+cargo run --bin lattice-store
 
 # 2. 启动 Web 服务器
 cd web/chat
@@ -290,13 +290,13 @@ sudo systemctl start nginx
 npm run build
 
 # 2. 部署到服务器
-rsync -avz web/chat/ user@server:/var/www/nextim/
+rsync -avz web/chat/ user@server:/var/www/lattice/
 
 # 3. 配置 Nginx/Apache
 sudo systemctl reload nginx
 
 # 4. 启动 Store 服务
-systemctl start nextim-store
+systemctl start lattice-store
 ```
 
 ## 性能优化
@@ -375,7 +375,7 @@ html-minifier --collapse-whitespace --remove-comments index.html -o index.min.ht
 # 重定向 HTTP 到 HTTPS
 server {
     listen 80;
-    server_name chat.nextim.example.com;
+    server_name chat.lattice.example.com;
     return 301 https://$server_name$request_uri;
 }
 ```
@@ -432,21 +432,21 @@ sudo firewall-cmd --reload
 ### 1. Nginx 访问日志
 
 ```nginx
-access_log /var/log/nginx/nextim-access.log combined;
-error_log /var/log/nginx/nextim-error.log warn;
+access_log /var/log/nginx/lattice-access.log combined;
+error_log /var/log/nginx/lattice-error.log warn;
 ```
 
 ### 2. 日志分析
 
 ```bash
 # 查看访问量
-tail -f /var/log/nginx/nextim-access.log
+tail -f /var/log/nginx/lattice-access.log
 
 # 统计 IP 访问次数
-awk '{print $1}' /var/log/nginx/nextim-access.log | sort | uniq -c | sort -rn | head -10
+awk '{print $1}' /var/log/nginx/lattice-access.log | sort | uniq -c | sort -rn | head -10
 
 # 统计状态码
-awk '{print $9}' /var/log/nginx/nextim-access.log | sort | uniq -c | sort -rn
+awk '{print $9}' /var/log/nginx/lattice-access.log | sort | uniq -c | sort -rn
 ```
 
 ### 3. 性能监控
@@ -465,21 +465,21 @@ awk '{print $9}' /var/log/nginx/nextim-access.log | sort | uniq -c | sort -rn
 git push origin main
 
 # 定期备份
-rsync -avz /var/www/nextim/ /backup/nextim-$(date +%Y%m%d)/
+rsync -avz /var/www/lattice/ /backup/lattice-$(date +%Y%m%d)/
 ```
 
 ### 2. 数据备份
 
 ```bash
 # Store 数据库备份
-cp /data/nextim/store.db /backup/store-$(date +%Y%m%d).db
+cp /data/lattice/store.db /backup/store-$(date +%Y%m%d).db
 
 # 自动备份脚本
 #!/bin/bash
-BACKUP_DIR="/backup/nextim"
+BACKUP_DIR="/backup/lattice"
 DATE=$(date +%Y%m%d)
 mkdir -p $BACKUP_DIR
-cp /data/nextim/store.db $BACKUP_DIR/store-$DATE.db
+cp /data/lattice/store.db $BACKUP_DIR/store-$DATE.db
 find $BACKUP_DIR -name "store-*.db" -mtime +30 -delete
 ```
 
@@ -490,7 +490,7 @@ find $BACKUP_DIR -name "store-*.db" -mtime +30 -delete
 **检查**:
 ```bash
 # Store 服务是否运行
-ps aux | grep nextim-store
+ps aux | grep lattice-store
 
 # 端口是否监听
 netstat -tlnp | grep 9100
@@ -502,7 +502,7 @@ sudo ufw status
 **解决**:
 ```bash
 # 启动 Store 服务
-cargo run --bin nextim-store
+cargo run --bin lattice-store
 
 # 开放端口
 sudo ufw allow 9100/tcp
@@ -533,11 +533,11 @@ proxy_set_header Connection "upgrade";
 **解决**:
 ```bash
 # 检查文件
-ls -la /var/www/nextim/web/chat/
+ls -la /var/www/lattice/web/chat/
 
 # 修复权限
-sudo chown -R www-data:www-data /var/www/nextim/
-sudo chmod -R 755 /var/www/nextim/
+sudo chown -R www-data:www-data /var/www/lattice/
+sudo chmod -R 755 /var/www/lattice/
 ```
 
 ## 更新部署
@@ -546,24 +546,24 @@ sudo chmod -R 755 /var/www/nextim/
 
 ```bash
 # 1. 备份当前版本
-cp -r /var/www/nextim /var/www/nextim.backup
+cp -r /var/www/lattice /var/www/lattice.backup
 
 # 2. 部署新版本
-rsync -avz web/chat/ /var/www/nextim/web/chat/
+rsync -avz web/chat/ /var/www/lattice/web/chat/
 
 # 3. 重载 Nginx（不中断连接）
 sudo nginx -t && sudo nginx -s reload
 
 # 4. 验证
-curl -I https://chat.nextim.example.com
+curl -I https://chat.lattice.example.com
 ```
 
 ### 2. 回滚
 
 ```bash
 # 恢复备份
-rm -rf /var/www/nextim
-mv /var/www/nextim.backup /var/www/nextim
+rm -rf /var/www/lattice
+mv /var/www/lattice.backup /var/www/lattice
 
 # 重载 Nginx
 sudo nginx -s reload
@@ -574,7 +574,7 @@ sudo nginx -s reload
 ### 1. 负载均衡
 
 ```nginx
-upstream nextim_backend {
+upstream lattice_backend {
     server 127.0.0.1:9100;
     server 127.0.0.1:9101;
     server 127.0.0.1:9102;
@@ -582,7 +582,7 @@ upstream nextim_backend {
 
 server {
     location /api/ {
-        proxy_pass http://nextim_backend/;
+        proxy_pass http://lattice_backend/;
     }
 }
 ```
@@ -591,9 +591,9 @@ server {
 
 ```bash
 # 启动多个 Store 实例
-cargo run --bin nextim-store -- --port 9100 &
-cargo run --bin nextim-store -- --port 9101 &
-cargo run --bin nextim-store -- --port 9102 &
+cargo run --bin lattice-store -- --port 9100 &
+cargo run --bin lattice-store -- --port 9101 &
+cargo run --bin lattice-store -- --port 9102 &
 ```
 
 ### 3. 容器编排（Kubernetes）
@@ -602,30 +602,30 @@ cargo run --bin nextim-store -- --port 9102 &
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nextim-web
+  name: lattice-web
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: nextim-web
+      app: lattice-web
   template:
     metadata:
       labels:
-        app: nextim-web
+        app: lattice-web
     spec:
       containers:
       - name: nginx
-        image: nextim-web:latest
+        image: lattice-web:latest
         ports:
         - containerPort: 80
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: nextim-web
+  name: lattice-web
 spec:
   selector:
-    app: nextim-web
+    app: lattice-web
   ports:
   - port: 80
     targetPort: 80
@@ -634,7 +634,7 @@ spec:
 
 ## 总结
 
-NextIM Web Chat 支持多种部署方式，从简单的本地开发到复杂的生产环境。选择合适的部署方式取决于你的需求：
+Lattice Web Chat 支持多种部署方式，从简单的本地开发到复杂的生产环境。选择合适的部署方式取决于你的需求：
 
 - **开发**: Python HTTP 服务器
 - **测试**: Docker Compose

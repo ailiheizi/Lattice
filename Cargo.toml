@@ -1,16 +1,16 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/nextim-proto",
-    "crates/nextim-crypto",
-    "crates/nextim-core",
-    "crates/nextim-transport",
-    "crates/nextim-storage",
-    "crates/nextim-store",
-    "crates/nextim-peer",
-    "crates/nextim-ffi",
-    "crates/nextim-tests",
-    "crates/nextim-discovery",
+    "crates/lattice-proto",
+    "crates/lattice-crypto",
+    "crates/lattice-core",
+    "crates/lattice-transport",
+    "crates/lattice-storage",
+    "crates/lattice-store",
+    "crates/lattice-peer",
+    "crates/lattice-ffi",
+    "crates/lattice-tests",
+    "crates/lattice-discovery",
 ]
 
 [workspace.package]

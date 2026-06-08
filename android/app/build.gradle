@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.nextim.demo'
+    namespace 'com.lattice.demo'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.nextim.demo"
+        applicationId "com.lattice.demo"
         minSdk 26
         targetSdk 34
         versionCode 1

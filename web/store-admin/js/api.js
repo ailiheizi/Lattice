@@ -1,4 +1,4 @@
-// API Client for NextIM Store
+// API Client for Lattice Store
 class StoreAPI {
     constructor(baseURL) {
         this.baseURL = baseURL;

@@ -1,6 +1,6 @@
-# NextIM Web Chat
+# Lattice Web Chat
 
-现代化的 Web 聊天界面，用于 NextIM 去中心化即时通讯系统。
+现代化的 Web 聊天界面，用于 Lattice 去中心化即时通讯系统。
 
 ## 功能特性
 
@@ -34,7 +34,7 @@ web/chat/
 
 ```bash
 # 在项目根目录
-cargo run --bin nextim-store
+cargo run --bin lattice-store
 ```
 
 Store 服务默认运行在 `http://localhost:9100`
@@ -43,7 +43,7 @@ Store 服务默认运行在 `http://localhost:9100`
 
 在浏览器中打开：
 ```
-file:///D:/windows/code/project/NextIM/web/chat/index.html
+file:///D:/windows/code/project/Lattice/web/chat/index.html
 ```
 
 或使用本地 HTTP 服务器：
@@ -112,10 +112,10 @@ python -m http.server 8080
 
 所有设置保存在浏览器 LocalStorage 中：
 
-- `nextim-api-url` - Store API 地址
-- `nextim-username` - 用户名
-- `nextim-theme` - 主题设置
-- `nextim-settings` - 其他偏好设置
+- `lattice-api-url` - Store API 地址
+- `lattice-username` - 用户名
+- `lattice-theme` - 主题设置
+- `lattice-settings` - 其他偏好设置
 
 ## API 端点
 
@@ -172,4 +172,4 @@ Web 界面使用以下 Store API 端点：
 
 ## 许可证
 
-与 NextIM 项目相同
+与 Lattice 项目相同

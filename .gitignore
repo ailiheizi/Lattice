@@ -21,8 +21,8 @@
 *.db-wal
 
 # Configuration files (keep examples)
-nextim-store.toml
-nextim-peer.toml
+lattice-store.toml
+lattice-peer.toml
 !*.example.toml
 
 # Test artifacts

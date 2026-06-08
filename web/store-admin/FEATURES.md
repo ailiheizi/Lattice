@@ -1,4 +1,4 @@
-# NextIM Store 管理面板 - 功能详解
+# Lattice Store 管理面板 - 功能详解
 
 ## 核心功能
 

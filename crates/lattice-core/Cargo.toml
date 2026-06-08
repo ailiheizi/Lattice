@@ -1,0 +1,11 @@
+[package]
+name = "lattice-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lattice-proto = { path = "../lattice-proto" }
+thiserror.workspace = true
+uuid.workspace = true
+bytes.workspace = true
+sha2.workspace = true

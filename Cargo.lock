@@ -1295,6 +1295,193 @@ dependencies = [
 ]
 
 [[package]]
+name = "lattice-core"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "lattice-proto",
+ "sha2",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
+name = "lattice-crypto"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "ed25519-dalek",
+ "hex",
+ "lattice-core",
+ "lattice-proto",
+ "prost",
+ "rand",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+ "vodozemac",
+ "x25519-dalek",
+ "zeroize",
+]
+
+[[package]]
+name = "lattice-discovery"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "hex",
+ "lattice-core",
+ "lattice-crypto",
+ "lattice-proto",
+ "prost",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+]
+
+[[package]]
+name = "lattice-ffi"
+version = "0.1.0"
+dependencies = [
+ "ed25519-dalek",
+ "lattice-core",
+ "lattice-crypto",
+ "lattice-proto",
+ "lattice-storage",
+ "lattice-transport",
+ "prost",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "uniffi",
+ "uuid",
+]
+
+[[package]]
+name = "lattice-peer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "ed25519-dalek",
+ "futures-util",
+ "lattice-core",
+ "lattice-crypto",
+ "lattice-proto",
+ "lattice-transport",
+ "prost",
+ "rand",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-tungstenite",
+ "toml 0.8.23",
+ "tower",
+ "tower-http 0.6.8",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "lattice-proto"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "prost-build",
+ "prost-types",
+ "serde",
+]
+
+[[package]]
+name = "lattice-storage"
+version = "0.1.0"
+dependencies = [
+ "lattice-core",
+ "lattice-proto",
+ "prost",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tantivy",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "lattice-store"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64",
+ "ed25519-dalek",
+ "futures-util",
+ "lattice-core",
+ "lattice-crypto",
+ "lattice-discovery",
+ "lattice-proto",
+ "lattice-storage",
+ "lattice-transport",
+ "prost",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "toml 0.8.23",
+ "tower-http 0.5.2",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "lattice-tests"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64",
+ "futures-util",
+ "lattice-core",
+ "lattice-crypto",
+ "lattice-proto",
+ "lattice-storage",
+ "lattice-store",
+ "lattice-transport",
+ "prost",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-tungstenite",
+ "tower-http 0.5.2",
+ "uuid",
+ "vodozemac",
+]
+
+[[package]]
+name = "lattice-transport"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "futures-util",
+ "lattice-core",
+ "lattice-proto",
+ "prost",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1499,193 +1686,6 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
-]
-
-[[package]]
-name = "nextim-core"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "nextim-proto",
- "sha2",
- "thiserror 2.0.18",
- "uuid",
-]
-
-[[package]]
-name = "nextim-crypto"
-version = "0.1.0"
-dependencies = [
- "base64",
- "ed25519-dalek",
- "hex",
- "nextim-core",
- "nextim-proto",
- "prost",
- "rand",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.18",
- "vodozemac",
- "x25519-dalek",
- "zeroize",
-]
-
-[[package]]
-name = "nextim-discovery"
-version = "0.1.0"
-dependencies = [
- "futures-util",
- "hex",
- "nextim-core",
- "nextim-crypto",
- "nextim-proto",
- "prost",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.18",
- "tokio",
- "tokio-tungstenite",
- "tracing",
-]
-
-[[package]]
-name = "nextim-ffi"
-version = "0.1.0"
-dependencies = [
- "ed25519-dalek",
- "nextim-core",
- "nextim-crypto",
- "nextim-proto",
- "nextim-storage",
- "nextim-transport",
- "prost",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "uniffi",
- "uuid",
-]
-
-[[package]]
-name = "nextim-peer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "ed25519-dalek",
- "futures-util",
- "nextim-core",
- "nextim-crypto",
- "nextim-proto",
- "nextim-transport",
- "prost",
- "rand",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tokio-tungstenite",
- "toml 0.8.23",
- "tower",
- "tower-http 0.6.8",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "nextim-proto"
-version = "0.1.0"
-dependencies = [
- "prost",
- "prost-build",
- "prost-types",
- "serde",
-]
-
-[[package]]
-name = "nextim-storage"
-version = "0.1.0"
-dependencies = [
- "nextim-core",
- "nextim-proto",
- "prost",
- "rusqlite",
- "serde",
- "serde_json",
- "tantivy",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "nextim-store"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64",
- "ed25519-dalek",
- "futures-util",
- "nextim-core",
- "nextim-crypto",
- "nextim-discovery",
- "nextim-proto",
- "nextim-storage",
- "nextim-transport",
- "prost",
- "serde",
- "serde_json",
- "tokio",
- "tokio-tungstenite",
- "toml 0.8.23",
- "tower-http 0.5.2",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
-name = "nextim-tests"
-version = "0.1.0"
-dependencies = [
- "axum",
- "base64",
- "futures-util",
- "nextim-core",
- "nextim-crypto",
- "nextim-proto",
- "nextim-storage",
- "nextim-store",
- "nextim-transport",
- "prost",
- "reqwest",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tokio-tungstenite",
- "tower-http 0.5.2",
- "uuid",
- "vodozemac",
-]
-
-[[package]]
-name = "nextim-transport"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "futures-util",
- "nextim-core",
- "nextim-proto",
- "prost",
- "thiserror 2.0.18",
- "tokio",
- "tokio-tungstenite",
- "tracing",
 ]
 
 [[package]]

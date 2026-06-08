@@ -1,0 +1,15 @@
+[package]
+name = "lattice-transport"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lattice-proto = { path = "../lattice-proto" }
+lattice-core = { path = "../lattice-core" }
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+prost.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+futures-util = "0.3"

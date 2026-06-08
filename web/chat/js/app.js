@@ -1,5 +1,5 @@
-// NextIM Web Chat - Main Application
-class NextIMApp {
+// Lattice Web Chat - Main Application
+class LatticeApp {
   constructor() {
     this.apiUrl = '';
     this.wsUrl = '';
@@ -9,7 +9,7 @@ class NextIMApp {
     this.wsReconnectTimer = null;
     this.pollInterval = null;
     this.currentView = 'rooms';
-    this.theme = localStorage.getItem('nextim-theme') || 'dark';
+    this.theme = localStorage.getItem('lattice-theme') || 'dark';
 
     // Module instances
     this.chat = null;
@@ -27,8 +27,8 @@ class NextIMApp {
     }
 
     // Load saved connection settings
-    const savedApiUrl = localStorage.getItem('nextim-api-url');
-    const savedUsername = localStorage.getItem('nextim-username');
+    const savedApiUrl = localStorage.getItem('lattice-api-url');
+    const savedUsername = localStorage.getItem('lattice-username');
 
     if (savedApiUrl) {
       document.getElementById('api-url').value = savedApiUrl;
@@ -101,8 +101,8 @@ class NextIMApp {
     this.username = usernameInput;
 
     // Save settings
-    localStorage.setItem('nextim-api-url', this.apiUrl);
-    localStorage.setItem('nextim-username', this.username);
+    localStorage.setItem('lattice-api-url', this.apiUrl);
+    localStorage.setItem('lattice-username', this.username);
 
     try {
       // Check API health
@@ -239,7 +239,7 @@ class NextIMApp {
       this.theme = 'dark';
       document.body.classList.remove('light-theme');
     }
-    localStorage.setItem('nextim-theme', this.theme);
+    localStorage.setItem('lattice-theme', this.theme);
   }
 
   toggleSidebar() {
@@ -265,7 +265,7 @@ class NextIMApp {
 
     // Browser notification for new messages
     if (type === 'message' && 'Notification' in window && Notification.permission === 'granted') {
-      new Notification('NextIM', {
+      new Notification('Lattice', {
         body: message,
         icon: '/favicon.ico'
       });
@@ -332,5 +332,5 @@ class NextIMApp {
 // Initialize app when DOM is ready
 let app;
 document.addEventListener('DOMContentLoaded', () => {
-  app = new NextIMApp();
+  app = new LatticeApp();
 });

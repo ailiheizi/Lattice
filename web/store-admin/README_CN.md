@@ -1,8 +1,8 @@
-# NextIM Store 管理面板
+# Lattice Store 管理面板
 
 [English](README.md) | 简体中文
 
-现代化的 NextIM Store 管理界面，提供实时数据监控和管理功能。
+现代化的 Lattice Store 管理界面，提供实时数据监控和管理功能。
 
 ## 特性
 
@@ -18,8 +18,8 @@
 ### 1. 启动 Store 服务
 
 ```bash
-cd NextIM
-cargo run --bin nextim-store
+cd Lattice
+cargo run --bin lattice-store
 ```
 
 ### 2. 启动管理面板
@@ -190,13 +190,13 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 ## 致谢
 
 - [Chart.js](https://www.chartjs.org/) - 数据可视化
-- [NextIM](https://github.com/nextim) - 去中心化即时通讯
+- [Lattice](https://github.com/lattice) - 去中心化即时通讯
 
 ## 联系方式
 
-- 问题反馈: [GitHub Issues](https://github.com/nextim/NextIM/issues)
-- 代码贡献: [Pull Requests](https://github.com/nextim/NextIM/pulls)
+- 问题反馈: [GitHub Issues](https://github.com/lattice/Lattice/issues)
+- 代码贡献: [Pull Requests](https://github.com/lattice/Lattice/pulls)
 
 ---
 
-**由 NextIM Team 用 ❤️ 制作**
+**由 Lattice Team 用 ❤️ 制作**

@@ -1,0 +1,69 @@
+namespace lattice {
+
+};
+
+[Error]
+enum LatticeFfiError {
+    "CryptoError",
+    "StorageError",
+    "TransportError",
+    "SerializationError",
+    "Other",
+};
+
+dictionary FfiIdentity {
+    bytes ed25519_public_key;
+    bytes curve25519_public_key;
+    string fingerprint;
+    string display_name;
+    u64 created_at;
+};
+
+dictionary FfiIdentityCard {
+    FfiIdentity identity;
+    string store_address;
+    string proxy_store_address;
+};
+
+dictionary FfiMessage {
+    string msg_id;
+    string room_id;
+    string sender_fingerprint;
+    u64 timestamp;
+    string text;
+    boolean encrypted;
+    boolean verified;
+};
+
+dictionary FfiSearchResult {
+    string msg_id;
+    string room_id;
+    string snippet;
+    float score;
+    u64 timestamp;
+};
+
+interface LatticeClient {
+    [Throws=LatticeFfiError]
+    constructor(string data_dir);
+
+    [Throws=LatticeFfiError]
+    FfiIdentityCard create_identity(string display_name, string store_address);
+
+    string get_fingerprint();
+
+    [Throws=LatticeFfiError]
+    bytes sign_data(bytes data);
+
+    [Throws=LatticeFfiError]
+    boolean verify_signature(bytes public_key, bytes data, bytes signature);
+
+    [Throws=LatticeFfiError]
+    string send_message(string room_id, string text);
+
+    [Throws=LatticeFfiError]
+    sequence<FfiMessage> get_messages(string room_id, u64 since, u64 until, u32 limit);
+
+    [Throws=LatticeFfiError]
+    sequence<FfiSearchResult> search(string query, u32 limit);
+};

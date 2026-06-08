@@ -1,4 +1,4 @@
-// NextIM Web Chat - Contacts Module
+// Lattice Web Chat - Contacts Module
 class ContactsModule {
   constructor(app) {
     this.app = app;

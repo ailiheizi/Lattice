@@ -1,7 +1,7 @@
 {
-  "name": "nextim-store-admin",
+  "name": "lattice-store-admin",
   "version": "1.0.0",
-  "description": "NextIM Store 管理面板 - 现代化的 Web 管理界面",
+  "description": "Lattice Store 管理面板 - 现代化的 Web 管理界面",
   "main": "index.html",
   "scripts": {
     "start": "python -m http.server 8080",
@@ -10,13 +10,13 @@
     "lint": "echo \"No linting configured\""
   },
   "keywords": [
-    "nextim",
+    "lattice",
     "store",
     "admin",
     "dashboard",
     "management"
   ],
-  "author": "NextIM Team",
+  "author": "Lattice Team",
   "license": "MIT",
   "dependencies": {},
   "devDependencies": {

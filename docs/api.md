@@ -1,13 +1,13 @@
-# NextIM API 文档
+# Lattice API 文档
 
 本文档当前只作为公开概览入口，不再把旧示例直接当成最终契约。
 
 ## 当前状态
 
-- 蓝图主锚点：`docs/plans/2026-03-18-feat-nextim-implementation-plan.md`
-- 当前契约事实源：`.plans/nextim-dev/docs/api-contracts.md`
-- 当前剩余缺口：`.plans/nextim-dev/docs/gap-remediation.md`
-- 精确实现入口：`crates/nextim-store/src/api.rs`、`crates/nextim-peer/src/api.rs`、`proto/transport.proto`
+- 蓝图主锚点：`docs/plans/2026-03-18-feat-lattice-implementation-plan.md`
+- 当前契约事实源：`.plans/lattice-dev/docs/api-contracts.md`
+- 当前剩余缺口：`.plans/lattice-dev/docs/gap-remediation.md`
+- 精确实现入口：`crates/lattice-store/src/api.rs`、`crates/lattice-peer/src/api.rs`、`proto/transport.proto`
 
 本次审计已确认以下事项仍在收敛中，因此本文不再声称 API/WS 契约已经完整定稿：
 
@@ -17,7 +17,7 @@
 - DHT / STUN 运行时接线
 - E2EE / 多设备运行时集成
 - README、blueprint、代码入口之间的 contract drift
-- **消息签名验证当前不强制**：响应中的 `"verified"` 字段仅表示"是否通过校验"，但校验未通过（签名为空、无发送方公钥、验签失败）的消息当前仍会被存储。签名内容也尚未覆盖全部元数据，且无 `prev_hash` 链式防伪。详见 `.plans/nextim-dev/docs/gap-remediation.md` 第 7 条。
+- **消息签名验证当前不强制**：响应中的 `"verified"` 字段仅表示"是否通过校验"，但校验未通过（签名为空、无发送方公钥、验签失败）的消息当前仍会被存储。签名内容也尚未覆盖全部元数据，且无 `prev_hash` 链式防伪。详见 `.plans/lattice-dev/docs/gap-remediation.md` 第 7 条。
 
 ## 目录
 
@@ -42,7 +42,7 @@
 
 - Store 与 Peer 当前都带有 REST 管理面。
 - 本页后续各小节中的 endpoint 与示例多数来自较早版本文档，只能帮助理解接口形态，不能替代事实源。
-- 若要做实现、联调或测试，请直接回到 `.plans/nextim-dev/docs/api-contracts.md` 与代码入口核对。
+- 若要做实现、联调或测试，请直接回到 `.plans/lattice-dev/docs/api-contracts.md` 与代码入口核对。
 
 ### 身份相关
 
@@ -336,8 +336,8 @@ ws.onmessage = (event) => {
 当前应以以下路径作为 WebSocket / Protobuf 契约来源：
 
 - `proto/transport.proto`
-- `nextim_proto::transport::Frame`
-- `.plans/nextim-dev/docs/api-contracts.md`
+- `lattice_proto::transport::Frame`
+- `.plans/lattice-dev/docs/api-contracts.md`
 
 在完成契约收敛前，任何联调方都不应只依赖本页旧 frame 示例实现客户端或服务端。
 

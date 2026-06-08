@@ -1,0 +1,19 @@
+[package]
+name = "lattice-discovery"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lattice-proto = { path = "../lattice-proto" }
+lattice-core = { path = "../lattice-core" }
+lattice-crypto = { path = "../lattice-crypto" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+prost.workspace = true
+futures-util = "0.3"
+tokio-tungstenite.workspace = true

@@ -1,6 +1,6 @@
 # 贡献指南
 
-感谢您对 NextIM Store 管理面板的关注！我们欢迎各种形式的贡献。
+感谢您对 Lattice Store 管理面板的关注！我们欢迎各种形式的贡献。
 
 ## 如何贡献
 
@@ -51,8 +51,8 @@
 1. Fork 项目仓库
 2. 克隆到本地
 ```bash
-git clone https://github.com/your-username/NextIM.git
-cd NextIM/web/store-admin
+git clone https://github.com/your-username/Lattice.git
+cd Lattice/web/store-admin
 ```
 
 3. 创建功能分支
@@ -289,8 +289,8 @@ Closes #123
 
 1. 启动 Store 服务
 ```bash
-cd NextIM
-cargo run --bin nextim-store
+cd Lattice
+cargo run --bin lattice-store
 ```
 
 2. 启动管理面板
@@ -408,7 +408,7 @@ console.trace();
 
 ## 感谢
 
-感谢您的贡献，让 NextIM 变得更好！
+感谢您的贡献，让 Lattice 变得更好！
 
 ---
 

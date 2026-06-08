@@ -1,5 +1,5 @@
 syntax = "proto3";
-package nextim.identity;
+package lattice.identity;
 
 message Identity {
     bytes ed25519_public_key = 1;

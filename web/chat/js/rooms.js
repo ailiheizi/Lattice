@@ -1,4 +1,4 @@
-// NextIM Web Chat - Rooms Module
+// Lattice Web Chat - Rooms Module
 class RoomsModule {
   constructor(app) {
     this.app = app;

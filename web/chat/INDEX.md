@@ -1,4 +1,4 @@
-# NextIM Web Chat
+# Lattice Web Chat
 
 现代化的 Web 聊天前端已完成！
 
@@ -63,8 +63,8 @@ web/chat/
 
 ### 1. 启动后端
 ```bash
-cd D:/windows/code/project/NextIM
-cargo run --bin nextim-store
+cd D:/windows/code/project/Lattice
+cargo run --bin lattice-store
 ```
 
 ### 2. 启动前端
@@ -275,11 +275,11 @@ docker-compose up -d
 
 ## 📄 许可证
 
-与 NextIM 项目相同
+与 Lattice 项目相同
 
 ## 🙏 致谢
 
-- NextIM 核心团队
+- Lattice 核心团队
 - Rust 社区
 - 开源贡献者
 
@@ -297,7 +297,7 @@ docker-compose up -d
 
 **最后更新**: 2026-03-21
 
-**开发者**: NextIM Team
+**开发者**: Lattice Team
 
 ---
 

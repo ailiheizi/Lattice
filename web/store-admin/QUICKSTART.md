@@ -1,14 +1,14 @@
-# NextIM Store 管理面板 - 快速开始
+# Lattice Store 管理面板 - 快速开始
 
 5 分钟快速上手指南。
 
 ## 第一步：启动 Store 服务
 
-确保 NextIM Store 服务正在运行：
+确保 Lattice Store 服务正在运行：
 
 ```bash
-cd NextIM
-cargo run --bin nextim-store
+cd Lattice
+cargo run --bin lattice-store
 ```
 
 默认监听端口：`9100`

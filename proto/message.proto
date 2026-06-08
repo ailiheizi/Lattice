@@ -1,5 +1,5 @@
 syntax = "proto3";
-package nextim.message;
+package lattice.message;
 
 message Envelope {
     string msg_id = 1;

@@ -1,4 +1,4 @@
-# NextIM Web Client - Apache Configuration
+# Lattice Web Client - Apache Configuration
 
 # Enable CORS for API requests
 <IfModule mod_headers.c>

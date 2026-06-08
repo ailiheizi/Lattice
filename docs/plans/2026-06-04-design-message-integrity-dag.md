@@ -1,21 +1,21 @@
 ---
-title: "design: NextIM 消息完整性与哈希 DAG"
+title: "design: Lattice 消息完整性与哈希 DAG"
 type: design
 date: 2026-06-04
 status: draft
 ---
 
-# NextIM 消息完整性与哈希 DAG 设计
+# Lattice 消息完整性与哈希 DAG 设计
 
 ## 0. 本文目的
 
-确定 NextIM 消息层的**防伪造、防篡改、可排序**模型，覆盖通用 IM（1v1 + 群聊）的真实情况。本文是设计基线，实现以本文敲定的模型为准。
+确定 Lattice 消息层的**防伪造、防篡改、可排序**模型，覆盖通用 IM（1v1 + 群聊）的真实情况。本文是设计基线，实现以本文敲定的模型为准。
 
 不在本文解决：传输 TLS、REST 鉴权（另见 `gap-remediation.md`）。本文聚焦消息内容与顺序的完整性。
 
 ## 1. 现状与缺陷（事实源）
 
-当前签名实现：`crates/nextim-crypto/src/sign.rs`
+当前签名实现：`crates/lattice-crypto/src/sign.rs`
 
 ```
 payload_hash = sha256(payload)
@@ -26,7 +26,7 @@ signature    = sign(payload_hash)         // 只签 payload 哈希
 
 1. **元数据未签名**：`msg_id` / `sender_fingerprint` / `recipient_fingerprint` 未进签名内容，可篡改而签名仍通过。证据 `sign.rs:56-64`。
 2. **无链式绑定**：`proto/message.proto` 的 `Envelope` 无 `prev_hash`，消息间无关联，可重排/插入/凭空伪造历史。
-3. **验签不强制**：`crates/nextim-store/src/server.rs:103` 验签失败/无签名/无公钥时 `verified=false`，但消息仍存储转发。Peer relay（`relay.rs:111`）更是零校验直接缓存。
+3. **验签不强制**：`crates/lattice-store/src/server.rs:103` 验签失败/无签名/无公钥时 `verified=false`，但消息仍存储转发。Peer relay（`relay.rs:111`）更是零校验直接缓存。
 
 **结论**：当前无法阻止一方伪造一整条逻辑自洽的历史，也无法阻止中间人篡改元数据。
 
@@ -148,7 +148,7 @@ DAG 拓扑排序 + 确定性平局打破：
 - `sign.rs`：`sign_envelope` / `verify_envelope` 改为按 3.1 计算 msg_hash；新增 prev_hashes 参数。
 - `server.rs:103`：验签改为**强制**——要求验签的消息未通过则拒绝存储/转发（返回错误 ACK）。
 - `relay.rs:111`：Peer 转发前至少校验签名结构与大小上限（Peer 无发送方公钥时按策略缓存或拒绝，列为决策点 D-5）。
-- `nextim-core`：新增 DAG 模块（head 跟踪、拓扑排序、挂起区）。
+- `lattice-core`：新增 DAG 模块（head 跟踪、拓扑排序、挂起区）。
 
 ## 9. 决策点（需主控拍板）
 
@@ -206,7 +206,7 @@ Synapse 不是单一全序，而是 **`(topological_ordering, stream_ordering)` 
 
 ### 12.4 State resolution（新增认知）
 
-Matrix 有 **state resolution**：当多个分支对房间状态（成员/权限）有冲突时，用确定性算法收敛，"历史可被改写"。我们的 RoomEvent 入 DAG（5.5）会遇到同样问题——成员变更的并发冲突需要状态收敛规则。当前 NextIM 规模小可暂不实现完整 state res，但设计上要预留：成员/权限类事件的冲突收敛单列为后续课题（记为 D-6）。
+Matrix 有 **state resolution**：当多个分支对房间状态（成员/权限）有冲突时，用确定性算法收敛，"历史可被改写"。我们的 RoomEvent 入 DAG（5.5）会遇到同样问题——成员变更的并发冲突需要状态收敛规则。当前 Lattice 规模小可暂不实现完整 state res，但设计上要预留：成员/权限类事件的冲突收敛单列为后续课题（记为 D-6）。
 
 ### 12.5 Soft-fail（验证我们的强制验签）
 

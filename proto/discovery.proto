@@ -1,5 +1,5 @@
 syntax = "proto3";
-package nextim.discovery;
+package lattice.discovery;
 
 // DHT 节点发现协议（WebSocket 传输）。
 // 约束：联系人 store_address 为主路径，DHT 仅作可验证的 fallback。

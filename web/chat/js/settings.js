@@ -1,4 +1,4 @@
-// NextIM Web Chat - Settings Module
+// Lattice Web Chat - Settings Module
 class SettingsModule {
   constructor(app) {
     this.app = app;
@@ -15,7 +15,7 @@ class SettingsModule {
   }
 
   loadSettings() {
-    const saved = localStorage.getItem('nextim-settings');
+    const saved = localStorage.getItem('lattice-settings');
     if (saved) {
       try {
         this.settings = { ...this.settings, ...JSON.parse(saved) };
@@ -27,7 +27,7 @@ class SettingsModule {
   }
 
   saveSettings() {
-    localStorage.setItem('nextim-settings', JSON.stringify(this.settings));
+    localStorage.setItem('lattice-settings', JSON.stringify(this.settings));
     this.applySettings();
   }
 
@@ -124,7 +124,7 @@ class SettingsModule {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `nextim-export-${Date.now()}.json`;
+      a.download = `lattice-export-${Date.now()}.json`;
       a.click();
       URL.revokeObjectURL(url);
 
@@ -167,6 +167,6 @@ class SettingsModule {
   }
 
   showAbout() {
-    alert(`NextIM Web Chat v1.0\n\nA decentralized instant messaging system.\n\nBuilt with modern web technologies.`);
+    alert(`Lattice Web Chat v1.0\n\nA decentralized instant messaging system.\n\nBuilt with modern web technologies.`);
   }
 }

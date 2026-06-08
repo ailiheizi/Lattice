@@ -12,7 +12,7 @@ We release patches for security vulnerabilities. Which versions are eligible for
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them via email to: security@nextim.example.com
+Instead, please report them via email to: security@lattice.example.com
 
 You should receive a response within 48 hours. If for some reason you do not, please follow up via email to ensure we received your original message.
 
@@ -42,7 +42,7 @@ We prefer all communications to be in English or Chinese.
 
 ## Security Best Practices
 
-When deploying NextIM, we recommend:
+When deploying Lattice, we recommend:
 
 ### Network Security
 - Use TLS/SSL for all connections (via reverse proxy like nginx)
@@ -100,7 +100,7 @@ We appreciate the security research community's efforts in responsibly disclosin
 ## Contact
 
 For security-related questions or concerns, please contact:
-- Email: security@nextim.example.com
+- Email: security@lattice.example.com
 - PGP Key: [To be added]
 
 ---

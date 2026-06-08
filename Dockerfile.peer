@@ -1,4 +1,4 @@
-# Dockerfile for NextIM Peer Node
+# Dockerfile for Lattice Peer Node
 
 FROM rust:1.75 as builder
 
@@ -10,7 +10,7 @@ COPY proto ./proto
 COPY crates ./crates
 
 # Build release binary
-RUN cargo build --release --bin nextim-peer
+RUN cargo build --release --bin lattice-peer
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -22,22 +22,22 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create user
-RUN useradd -m -u 1000 nextim && \
-    mkdir -p /var/lib/nextim && \
-    mkdir -p /etc/nextim && \
-    chown -R nextim:nextim /var/lib/nextim
+RUN useradd -m -u 1000 lattice && \
+    mkdir -p /var/lib/lattice && \
+    mkdir -p /etc/lattice && \
+    chown -R lattice:lattice /var/lib/lattice
 
 # Copy binary
-COPY --from=builder /app/target/release/nextim-peer /usr/local/bin/
+COPY --from=builder /app/target/release/lattice-peer /usr/local/bin/
 
 # Copy example config
-COPY nextim-peer.example.toml /etc/nextim/peer.toml.example
+COPY lattice-peer.example.toml /etc/lattice/peer.toml.example
 
-USER nextim
-WORKDIR /var/lib/nextim
+USER lattice
+WORKDIR /var/lib/lattice
 
 EXPOSE 9200
 
-VOLUME ["/etc/nextim"]
+VOLUME ["/etc/lattice"]
 
-CMD ["nextim-peer"]
+CMD ["lattice-peer"]

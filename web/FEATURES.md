@@ -1,14 +1,14 @@
-# NextIM Web Client - 功能详解
+# Lattice Web Client - 功能详解
 
 ## 1. 用户界面组件
 
 ### 1.1 顶部导航栏
 ```
-[NextIM] [API Status] [WS Status] ................ [User] [☰] [👤] [⚙️]
+[Lattice] [API Status] [WS Status] ................ [User] [☰] [👤] [⚙️]
 ```
 
 **组件说明：**
-- **应用标题** - NextIM 品牌标识
+- **应用标题** - Lattice 品牌标识
 - **API Status** - REST API 连接状态指示器
   - 🟢 API OK - 已连接
   - 🔴 Failed - 连接失败
@@ -222,7 +222,7 @@ Privacy
 ### 3.2 桌面通知
 ```
 ┌─────────────────────────────┐
-│ NextIM                      │
+│ Lattice                      │
 │ New Message                 │
 │ You have a new message      │
 └─────────────────────────────┘
@@ -348,7 +348,7 @@ GET /messages/:room_id?since=timestamp
 ### 8.1 LocalStorage 数据
 ```json
 {
-  "nextim-settings": {
+  "lattice-settings": {
     "theme": "dark",
     "notifications": true,
     "sound": true,

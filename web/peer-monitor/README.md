@@ -1,4 +1,4 @@
-# NextIM Peer 监控面板
+# Lattice Peer 监控面板
 
 完整的 Peer 节点监控系统，提供实时数据监控、性能分析、连接管理和缓存管理功能。
 
@@ -75,7 +75,7 @@
 
 ## 配置说明
 
-在 `nextim-peer.toml` 中添加 API 地址配置：
+在 `lattice-peer.toml` 中添加 API 地址配置：
 
 ```toml
 # REST API 监听地址
@@ -86,7 +86,7 @@ api_addr = "0.0.0.0:9201"
 
 1. 启动 Peer 节点：
 ```bash
-cargo run --package nextim-peer --release
+cargo run --package lattice-peer --release
 ```
 
 2. 访问监控面板：
@@ -119,7 +119,7 @@ Chart.js 可视化
 ## 文件结构
 
 ```
-crates/nextim-peer/src/
+crates/lattice-peer/src/
 ├── api.rs          # REST API 实现 (176 行)
 ├── main.rs         # 主程序（集成 API 服务）
 └── cache.rs        # 缓存统计支持

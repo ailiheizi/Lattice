@@ -1,11 +1,11 @@
 #!/bin/bash
-# NextIM Store 数据备份脚本
+# Lattice Store 数据备份脚本
 
 set -e
 
 # 配置
-BACKUP_DIR="${BACKUP_DIR:-/backup/nextim}"
-DATA_DIR="${DATA_DIR:-/var/lib/nextim/store}"
+BACKUP_DIR="${BACKUP_DIR:-/backup/lattice}"
+DATA_DIR="${DATA_DIR:-/var/lib/lattice/store}"
 RETENTION_DAYS="${RETENTION_DAYS:-7}"
 DATE=$(date +%Y%m%d_%H%M%S)
 
@@ -91,8 +91,8 @@ backup_search_index() {
 backup_config() {
     log_info "Backing up configuration..."
 
-    if [ -f "/etc/nextim/store.toml" ]; then
-        cp "/etc/nextim/store.toml" "$BACKUP_DIR/store_config_$DATE.toml"
+    if [ -f "/etc/lattice/store.toml" ]; then
+        cp "/etc/lattice/store.toml" "$BACKUP_DIR/store_config_$DATE.toml"
         log_info "Configuration backup completed: store_config_$DATE.toml"
     else
         log_warn "Configuration file not found, skipping..."
@@ -144,7 +144,7 @@ generate_report() {
     REPORT_FILE="$BACKUP_DIR/backup_report_$DATE.txt"
 
     cat > "$REPORT_FILE" <<EOF
-NextIM Store Backup Report
+Lattice Store Backup Report
 ==========================
 
 Backup Date: $(date)
@@ -178,7 +178,7 @@ EOF
 
 # 主函数
 main() {
-    log_info "Starting NextIM Store backup..."
+    log_info "Starting Lattice Store backup..."
     log_info "Backup directory: $BACKUP_DIR"
     log_info "Data directory: $DATA_DIR"
     log_info "Retention days: $RETENTION_DAYS"

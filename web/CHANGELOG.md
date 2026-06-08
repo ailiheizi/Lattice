@@ -1,6 +1,6 @@
-# NextIM Web Client - Changelog
+# Lattice Web Client - Changelog
 
-All notable changes to the NextIM Web Client will be documented in this file.
+All notable changes to the Lattice Web Client will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -167,11 +167,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `6b99135` - Add contacts/rooms REST API, online push, Peer config
 - `7ba14b3` - Add config file, message forwarding, eviction loop, cleanup warnings
 - `3f2289d` - Add Web frontend, DHT discovery, STUN, Android demo
-- `5f9d1a0` - Initial commit: NextIM decentralized IM system
+- `5f9d1a0` - Initial commit: Lattice decentralized IM system
 
 ## Contributors
 
-- NextIM Team
+- Lattice Team
 
 ## License
 

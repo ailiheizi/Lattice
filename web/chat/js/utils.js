@@ -1,4 +1,4 @@
-// NextIM Web Chat - Utility Functions
+// Lattice Web Chat - Utility Functions
 const Utils = {
   // Format file size
   formatFileSize(bytes) {

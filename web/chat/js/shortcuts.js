@@ -1,4 +1,4 @@
-// NextIM Web Chat - Keyboard Shortcuts
+// Lattice Web Chat - Keyboard Shortcuts
 class KeyboardShortcuts {
   constructor(app) {
     this.app = app;

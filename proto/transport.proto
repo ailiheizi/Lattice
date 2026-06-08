@@ -1,5 +1,5 @@
 syntax = "proto3";
-package nextim.transport;
+package lattice.transport;
 
 import "message.proto";
 import "identity.proto";
@@ -10,15 +10,15 @@ message Frame {
     FrameType type = 2;
 
     oneof body {
-        nextim.message.Envelope message = 10;
+        lattice.message.Envelope message = 10;
         MessageAck ack = 11;
-        nextim.identity.KeyBundle key_bundle = 20;
+        lattice.identity.KeyBundle key_bundle = 20;
         KeyRequest key_request = 21;
-        nextim.group.RoomEvent room_event = 30;
-        nextim.message.MessageOp message_op = 31;
-        nextim.message.Reaction reaction = 32;
-        nextim.message.ReadReceipt read_receipt = 33;
-        nextim.message.Typing typing = 34;
+        lattice.group.RoomEvent room_event = 30;
+        lattice.message.MessageOp message_op = 31;
+        lattice.message.Reaction reaction = 32;
+        lattice.message.ReadReceipt read_receipt = 33;
+        lattice.message.Typing typing = 34;
         SyncRequest sync_request = 40;
         SyncResponse sync_response = 41;
         Ping ping = 50;
@@ -74,14 +74,14 @@ message SyncTimelineItem {
     bytes msg_hash = 1;
 
     oneof item {
-        nextim.message.Envelope message = 10;
-        nextim.group.RoomEvent room_event = 11;
+        lattice.message.Envelope message = 10;
+        lattice.group.RoomEvent room_event = 11;
     }
 }
 
 message SyncResponse {
-    repeated nextim.message.Envelope messages = 1;
-    repeated nextim.group.RoomEvent events = 2;
+    repeated lattice.message.Envelope messages = 1;
+    repeated lattice.group.RoomEvent events = 2;
     uint64 next_batch = 3;
     repeated SyncTimelineItem timeline = 4;
 }

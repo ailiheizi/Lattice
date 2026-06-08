@@ -1,6 +1,6 @@
-# NextIM 开发指南
+# Lattice 开发指南
 
-本文档为 NextIM 项目的开发者提供详细的开发指南。
+本文档为 Lattice 项目的开发者提供详细的开发指南。
 
 ## 目录
 
@@ -76,8 +76,8 @@ cargo install cargo-ndk
 ### 4. 克隆项目
 
 ```bash
-git clone https://github.com/yourusername/NextIM.git
-cd NextIM
+git clone https://github.com/yourusername/Lattice.git
+cd Lattice
 
 # 构建项目
 cargo build
@@ -91,70 +91,70 @@ cargo test --workspace
 ### Workspace 结构
 
 ```
-nextim/
+lattice/
 ├── Cargo.toml                    # Workspace 根配置
 ├── proto/                        # Protobuf 定义
 ├── crates/
-│   ├── nextim-proto/             # Protobuf 生成代码
-│   ├── nextim-crypto/            # 加密层
-│   ├── nextim-core/              # 核心逻辑
-│   ├── nextim-transport/         # 传输层
-│   ├── nextim-storage/           # 存储层
-│   ├── nextim-discovery/         # 节点发现
-│   ├── nextim-store/             # Store 节点
-│   ├── nextim-peer/              # Peer 节点
-│   ├── nextim-ffi/               # FFI 绑定
-│   └── nextim-tests/             # 集成测试
+│   ├── lattice-proto/             # Protobuf 生成代码
+│   ├── lattice-crypto/            # 加密层
+│   ├── lattice-core/              # 核心逻辑
+│   ├── lattice-transport/         # 传输层
+│   ├── lattice-storage/           # 存储层
+│   ├── lattice-discovery/         # 节点发现
+│   ├── lattice-store/             # Store 节点
+│   ├── lattice-peer/              # Peer 节点
+│   ├── lattice-ffi/               # FFI 绑定
+│   └── lattice-tests/             # 集成测试
 └── docs/                         # 文档
 ```
 
 ### 依赖关系
 
 ```
-nextim-store
-    ├── nextim-core
-    │   ├── nextim-proto
-    │   └── nextim-crypto
-    ├── nextim-transport
-    │   └── nextim-proto
-    ├── nextim-storage
-    │   └── nextim-proto
-    └── nextim-discovery
+lattice-store
+    ├── lattice-core
+    │   ├── lattice-proto
+    │   └── lattice-crypto
+    ├── lattice-transport
+    │   └── lattice-proto
+    ├── lattice-storage
+    │   └── lattice-proto
+    └── lattice-discovery
 
-nextim-peer
-    ├── nextim-proto
-    └── nextim-transport
+lattice-peer
+    ├── lattice-proto
+    └── lattice-transport
 
-nextim-ffi
-    ├── nextim-core
-    ├── nextim-crypto
-    ├── nextim-storage
-    └── nextim-proto
+lattice-ffi
+    ├── lattice-core
+    ├── lattice-crypto
+    ├── lattice-storage
+    └── lattice-proto
 ```
 
 ### 模块职责
 
 | Crate | 职责 | 关键类型 |
 |-------|------|---------|
-| nextim-proto | Protobuf 定义和生成代码 | Message, Frame, Identity |
-| nextim-crypto | 加密、签名、信任模型 | MasterKeyPair, OlmAccount, TrustLevel |
-| nextim-core | 核心业务逻辑和 Trait 定义 | Transport, Storage, SearchIndex |
-| nextim-transport | WebSocket 传输实现 | WebSocketTransport |
-| nextim-storage | SQLite 存储和 Tantivy 搜索 | SqliteStorage, TantivySearch |
-| nextim-discovery | DHT 节点发现 | DhtNode, NodeId |
-| nextim-store | Store 节点二进制 | main, server, api |
-| nextim-peer | Peer 节点二进制 | main, relay, cache |
-| nextim-ffi | Android FFI 绑定 | NextImClient |
-| nextim-tests | 集成测试 | store_api, store_communication |
+| lattice-proto | Protobuf 定义和生成代码 | Message, Frame, Identity |
+| lattice-crypto | 加密、签名、信任模型 | MasterKeyPair, OlmAccount, TrustLevel |
+| lattice-core | 核心业务逻辑和 Trait 定义 | Transport, Storage, SearchIndex |
+| lattice-transport | WebSocket 传输实现 | WebSocketTransport |
+| lattice-storage | SQLite 存储和 Tantivy 搜索 | SqliteStorage, TantivySearch |
+| lattice-discovery | DHT 节点发现 | DhtNode, NodeId |
+| lattice-store | Store 节点二进制 | main, server, api |
+| lattice-peer | Peer 节点二进制 | main, relay, cache |
+| lattice-ffi | Android FFI 绑定 | LatticeClient |
+| lattice-tests | 集成测试 | store_api, store_communication |
 
 ## 核心概念
 
 ### 1. Trait 抽象
 
-NextIM 使用 Trait 实现可插拔的组件：
+Lattice 使用 Trait 实现可插拔的组件：
 
 ```rust
-// NextIM 使用 Rust 1.75+ 原生 async fn in trait（不依赖 async-trait crate）
+// Lattice 使用 Rust 1.75+ 原生 async fn in trait（不依赖 async-trait crate）
 
 // 传输层 Trait
 pub trait Transport: Send + Sync {
@@ -336,7 +336,7 @@ mod tests {
 ### 2. 集成测试
 
 ```rust
-// crates/nextim-tests/src/store_api.rs
+// crates/lattice-tests/src/store_api.rs
 
 #[tokio::test]
 async fn test_send_and_get_messages() {
@@ -367,7 +367,7 @@ async fn test_send_and_get_messages() {
 cargo test --workspace
 
 # 运行特定 crate 的测试
-cargo test -p nextim-crypto
+cargo test -p lattice-crypto
 
 # 运行特定测试
 cargo test test_name
@@ -407,7 +407,7 @@ pub async fn process_message(msg: &Message) -> Result<()> {
 
     if msg.content.is_none() {
         warn!("Message has no content: {}", msg.msg_id);
-        return Err(NextImError::InvalidMessage);
+        return Err(LatticeError::InvalidMessage);
     }
 
     info!("Message processed successfully: {}", msg.msg_id);
@@ -418,10 +418,10 @@ pub async fn process_message(msg: &Message) -> Result<()> {
 启用日志：
 ```bash
 # 设置日志级别
-RUST_LOG=debug cargo run --bin nextim-store
+RUST_LOG=debug cargo run --bin lattice-store
 
 # 只显示特定模块的日志
-RUST_LOG=nextim_store::server=debug cargo run --bin nextim-store
+RUST_LOG=lattice_store::server=debug cargo run --bin lattice-store
 ```
 
 ### 2. 使用 dbg! 宏
@@ -448,11 +448,11 @@ fn calculate_distance(a: &NodeId, b: &NodeId) -> [u8; 32] {
       "cargo": {
         "args": [
           "build",
-          "--bin=nextim-store",
-          "--package=nextim-store"
+          "--bin=lattice-store",
+          "--package=lattice-store"
         ],
         "filter": {
-          "name": "nextim-store",
+          "name": "lattice-store",
           "kind": "bin"
         }
       },
@@ -512,7 +512,7 @@ cargo bench
 cargo install cargo-flamegraph
 
 # 生成火焰图
-cargo flamegraph --bin nextim-store
+cargo flamegraph --bin lattice-store
 
 # 查看火焰图
 open flamegraph.svg
@@ -522,11 +522,11 @@ open flamegraph.svg
 
 ```bash
 # 使用 perf (Linux)
-perf record -g cargo run --release --bin nextim-store
+perf record -g cargo run --release --bin lattice-store
 perf report
 
 # 使用 Instruments (macOS)
-instruments -t "Time Profiler" target/release/nextim-store
+instruments -t "Time Profiler" target/release/lattice-store
 ```
 
 ## 常见任务
@@ -534,16 +534,16 @@ instruments -t "Time Profiler" target/release/nextim-store
 ### 1. 添加新的 Protobuf 消息
 
 1. 编辑 `proto/*.proto` 文件
-2. 重新构建 `nextim-proto`
+2. 重新构建 `lattice-proto`
 3. 更新使用该消息的代码
 
 ```bash
-cargo build -p nextim-proto
+cargo build -p lattice-proto
 ```
 
 ### 2. 添加新的 REST API 端点
 
-在 `crates/nextim-store/src/api.rs` 中：
+在 `crates/lattice-store/src/api.rs` 中：
 
 ```rust
 // 添加新的路由
@@ -565,7 +565,7 @@ async fn handle_new_endpoint(
 
 ### 3. 添加新的存储方法
 
-在 `crates/nextim-core/src/traits/storage.rs` 中（原生 async fn in trait）：
+在 `crates/lattice-core/src/traits/storage.rs` 中（原生 async fn in trait）：
 
 ```rust
 pub trait Storage: Send + Sync {
@@ -575,7 +575,7 @@ pub trait Storage: Send + Sync {
 }
 ```
 
-在 `crates/nextim-storage/src/sqlite.rs` 中实现（直接用 `async fn`，无需宏）：
+在 `crates/lattice-storage/src/sqlite.rs` 中实现（直接用 `async fn`，无需宏）：
 
 ```rust
 impl Storage for SqliteStorage {

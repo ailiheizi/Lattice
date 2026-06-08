@@ -9,7 +9,7 @@
         android:id="@+id/txt_fingerprint"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="NextIM Demo"
+        android:text="Lattice Demo"
         android:textSize="16sp"
         android:textStyle="bold"
         android:paddingBottom="8dp" />

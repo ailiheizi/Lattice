@@ -1,5 +1,5 @@
 #!/bin/bash
-# NextIM Android 构建脚本
+# Lattice Android 构建脚本
 # 前置条件：
 #   1. rustup target add aarch64-linux-android
 #   2. cargo install cargo-ndk
@@ -10,7 +10,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-echo "=== Building NextIM FFI for Android ==="
+echo "=== Building Lattice FFI for Android ==="
 
 # 检查工具链
 if ! command -v cargo-ndk &> /dev/null; then
@@ -28,14 +28,14 @@ rustup target add aarch64-linux-android 2>/dev/null || true
 
 # 编译
 cd "$PROJECT_ROOT"
-cargo ndk -t aarch64-linux-android -o android/app/src/main/jniLibs build -p nextim-ffi --release
+cargo ndk -t aarch64-linux-android -o android/app/src/main/jniLibs build -p lattice-ffi --release
 
 # 生成 Kotlin 绑定
 cargo run -p uniffi-bindgen -- generate \
-    crates/nextim-ffi/src/nextim.udl \
+    crates/lattice-ffi/src/lattice.udl \
     --language kotlin \
     --out-dir android/app/src/main/java/
 
 echo "=== Build complete ==="
-echo "  .so: android/app/src/main/jniLibs/arm64-v8a/libnextim_ffi.so"
-echo "  Kotlin: android/app/src/main/java/com/nextim/"
+echo "  .so: android/app/src/main/jniLibs/arm64-v8a/liblattice_ffi.so"
+echo "  Kotlin: android/app/src/main/java/com/lattice/"

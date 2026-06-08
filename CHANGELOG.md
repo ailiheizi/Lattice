@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial implementation of NextIM decentralized IM system
+- Initial implementation of Lattice decentralized IM system
 - Store node with WebSocket server and REST API
 - Peer relay node with message caching and forwarding
 - End-to-end encryption (Olm for 1v1, Megolm for group chat)
@@ -42,16 +42,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Complete documentation
 
 ### Components
-- `nextim-proto`: Protobuf definitions and generated code
-- `nextim-crypto`: Cryptography layer (identity, signing, E2EE)
-- `nextim-core`: Core business logic with Trait definitions
-- `nextim-transport`: WebSocket transport implementation
-- `nextim-storage`: SQLite storage + Tantivy search
-- `nextim-discovery`: DHT node discovery
-- `nextim-store`: Store node binary
-- `nextim-peer`: Peer relay node binary
-- `nextim-ffi`: Android FFI bindings
-- `nextim-tests`: Integration test suite
+- `lattice-proto`: Protobuf definitions and generated code
+- `lattice-crypto`: Cryptography layer (identity, signing, E2EE)
+- `lattice-core`: Core business logic with Trait definitions
+- `lattice-transport`: WebSocket transport implementation
+- `lattice-storage`: SQLite storage + Tantivy search
+- `lattice-discovery`: DHT node discovery
+- `lattice-store`: Store node binary
+- `lattice-peer`: Peer relay node binary
+- `lattice-ffi`: Android FFI bindings
+- `lattice-tests`: Integration test suite
 
 ### Security
 - Ed25519 + Curve25519 key pairs
@@ -74,5 +74,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API documentation
 - Test coverage report
 
-[Unreleased]: https://github.com/yourusername/NextIM/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/yourusername/NextIM/releases/tag/v0.1.0
+[Unreleased]: https://github.com/yourusername/Lattice/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/yourusername/Lattice/releases/tag/v0.1.0

@@ -1,7 +1,7 @@
 {
-  "name": "nextim-web-client",
+  "name": "lattice-web-client",
   "version": "0.1.0",
-  "description": "NextIM Web Client - Decentralized Instant Messaging",
+  "description": "Lattice Web Client - Decentralized Instant Messaging",
   "main": "index.html",
   "scripts": {
     "start": "python -m http.server 8080",
@@ -10,7 +10,7 @@
     "serve": "python -m http.server 8080"
   },
   "keywords": [
-    "nextim",
+    "lattice",
     "chat",
     "messaging",
     "decentralized",
@@ -18,14 +18,14 @@
     "websocket",
     "instant-messaging"
   ],
-  "author": "NextIM Team",
+  "author": "Lattice Team",
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/NextIM.git"
+    "url": "https://github.com/yourusername/Lattice.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/NextIM/issues"
+    "url": "https://github.com/yourusername/Lattice/issues"
   },
-  "homepage": "https://github.com/yourusername/NextIM#readme"
+  "homepage": "https://github.com/yourusername/Lattice#readme"
 }

@@ -1,5 +1,5 @@
 #!/bin/bash
-# NextIM Store 数据恢复脚本
+# Lattice Store 数据恢复脚本
 
 set -e
 
@@ -32,8 +32,8 @@ usage() {
 Usage: $0 [OPTIONS]
 
 Options:
-  -b, --backup-dir DIR     Backup directory (default: /backup/nextim)
-  -d, --data-dir DIR       Data directory (default: /var/lib/nextim/store)
+  -b, --backup-dir DIR     Backup directory (default: /backup/lattice)
+  -d, --data-dir DIR       Data directory (default: /var/lib/lattice/store)
   -f, --backup-file FILE   Specific backup file to restore
   -l, --list               List available backups
   -h, --help               Show this help message
@@ -48,8 +48,8 @@ EOF
 }
 
 # 配置
-BACKUP_DIR="${BACKUP_DIR:-/backup/nextim}"
-DATA_DIR="${DATA_DIR:-/var/lib/nextim/store}"
+BACKUP_DIR="${BACKUP_DIR:-/backup/lattice}"
+DATA_DIR="${DATA_DIR:-/var/lib/lattice/store}"
 BACKUP_FILE=""
 LIST_ONLY=false
 
@@ -158,11 +158,11 @@ select_backup() {
 
 # 停止服务
 stop_service() {
-    log_warn "Stopping NextIM Store service..."
+    log_warn "Stopping Lattice Store service..."
 
     if command -v systemctl &> /dev/null; then
-        if systemctl is-active --quiet nextim-store; then
-            sudo systemctl stop nextim-store
+        if systemctl is-active --quiet lattice-store; then
+            sudo systemctl stop lattice-store
             log_info "Service stopped"
         else
             log_info "Service is not running"
@@ -262,7 +262,7 @@ restore_config() {
         return
     fi
 
-    if [ -f "/etc/nextim/store.toml" ]; then
+    if [ -f "/etc/lattice/store.toml" ]; then
         log_warn "Configuration file already exists"
         read -p "Overwrite? (y/N): " OVERWRITE
         if [[ ! "$OVERWRITE" =~ ^[Yy]$ ]]; then
@@ -271,7 +271,7 @@ restore_config() {
         fi
     fi
 
-    cp "$CONFIG_BACKUP" "/etc/nextim/store.toml"
+    cp "$CONFIG_BACKUP" "/etc/lattice/store.toml"
 
     if [ $? -eq 0 ]; then
         log_info "Configuration restored successfully"
@@ -285,7 +285,7 @@ set_permissions() {
     log_info "Setting permissions..."
 
     if command -v chown &> /dev/null; then
-        sudo chown -R nextim:nextim "$DATA_DIR" 2>/dev/null || true
+        sudo chown -R lattice:lattice "$DATA_DIR" 2>/dev/null || true
     fi
 
     chmod 600 "$DATA_DIR/store.db" 2>/dev/null || true
@@ -293,12 +293,12 @@ set_permissions() {
 
 # 启动服务
 start_service() {
-    log_info "Starting NextIM Store service..."
+    log_info "Starting Lattice Store service..."
 
     if command -v systemctl &> /dev/null; then
-        sudo systemctl start nextim-store
+        sudo systemctl start lattice-store
         sleep 2
-        if systemctl is-active --quiet nextim-store; then
+        if systemctl is-active --quiet lattice-store; then
             log_info "Service started successfully"
         else
             log_error "Service failed to start"
@@ -324,7 +324,7 @@ verify_restore() {
 
     # 检查服务状态
     if command -v systemctl &> /dev/null; then
-        if systemctl is-active --quiet nextim-store; then
+        if systemctl is-active --quiet lattice-store; then
             log_info "Service is running"
         else
             log_warn "Service is not running"
@@ -334,7 +334,7 @@ verify_restore() {
 
 # 主函数
 main() {
-    log_info "NextIM Store Data Restore"
+    log_info "Lattice Store Data Restore"
     log_info "Backup directory: $BACKUP_DIR"
     log_info "Data directory: $DATA_DIR"
     echo ""

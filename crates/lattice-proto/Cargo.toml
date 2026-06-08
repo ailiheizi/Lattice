@@ -1,0 +1,12 @@
+[package]
+name = "lattice-proto"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+prost.workspace = true
+prost-types.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
+[build-dependencies]
+prost-build = "0.13"

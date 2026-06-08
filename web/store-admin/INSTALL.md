@@ -1,8 +1,8 @@
-# NextIM Store 管理面板 - 安装指南
+# Lattice Store 管理面板 - 安装指南
 
 ## 前置要求
 
-1. NextIM Store 服务运行中（默认端口 9100）
+1. Lattice Store 服务运行中（默认端口 9100）
 2. 现代浏览器（Chrome/Firefox/Safari/Edge）
 3. HTTP 服务器（用于提供静态文件）
 
@@ -42,7 +42,7 @@ server {
     listen 8080;
     server_name localhost;
     
-    root /path/to/NextIM/web/store-admin;
+    root /path/to/Lattice/web/store-admin;
     index index.html;
     
     location / {

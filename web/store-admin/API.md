@@ -1,4 +1,4 @@
-# NextIM Store REST API 文档
+# Lattice Store REST API 文档
 
 管理面板使用的 Store REST API 端点说明。
 

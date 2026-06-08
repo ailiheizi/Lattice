@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to NextIM Web Chat will be documented in this file.
+All notable changes to Lattice Web Chat will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-03-21
 
 ### Added
-- Initial release of NextIM Web Chat
+- Initial release of Lattice Web Chat
 - Real-time messaging with WebSocket support
 - Room management (create, join, list)
 - Contact management (add, list, trust levels)
@@ -119,7 +119,7 @@ This is the initial release, no migration needed.
 
 ## Contributors
 
-- NextIM Core Team
+- Lattice Core Team
 - Rust Community
 - Open Source Contributors
 

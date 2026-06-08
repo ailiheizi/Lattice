@@ -1,4 +1,4 @@
-# NextIM Web Chat - 开发指南
+# Lattice Web Chat - 开发指南
 
 ## 开发环境设置
 
@@ -13,11 +13,11 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/yourusername/NextIM.git
-cd NextIM
+git clone https://github.com/yourusername/Lattice.git
+cd Lattice
 
 # 2. 启动 Store 服务
-cargo run --bin nextim-store
+cargo run --bin lattice-store
 
 # 3. 在新终端启动 Web 服务器
 cd web/chat
@@ -61,7 +61,7 @@ web/chat/
 ### 模块化设计
 
 ```
-NextIMApp (app.js)
+LatticeApp (app.js)
 ├── ChatModule (chat.js)
 │   ├── sendMessage()
 │   ├── loadMessages()
@@ -224,10 +224,10 @@ console.timeEnd('loadMessages');
 
 ```javascript
 // 查看所有存储的数据
-console.log('API URL:', localStorage.getItem('nextim-api-url'));
-console.log('Username:', localStorage.getItem('nextim-username'));
-console.log('Theme:', localStorage.getItem('nextim-theme'));
-console.log('Settings:', JSON.parse(localStorage.getItem('nextim-settings')));
+console.log('API URL:', localStorage.getItem('lattice-api-url'));
+console.log('Username:', localStorage.getItem('lattice-username'));
+console.log('Theme:', localStorage.getItem('lattice-theme'));
+console.log('Settings:', JSON.parse(localStorage.getItem('lattice-settings')));
 
 // 清除所有数据
 localStorage.clear();
@@ -337,7 +337,7 @@ try {
 </main>
 
 <footer>
-  <p>&copy; 2026 NextIM</p>
+  <p>&copy; 2026 Lattice</p>
 </footer>
 
 <!-- 2. 可访问性 -->
@@ -360,7 +360,7 @@ describe('ChatModule', () => {
   let app, chat;
 
   beforeEach(() => {
-    app = new NextIMApp();
+    app = new LatticeApp();
     chat = new ChatModule(app);
   });
 
@@ -382,7 +382,7 @@ describe('ChatModule', () => {
 
 ```bash
 # 1. 启动 Store 服务
-cargo run --bin nextim-store
+cargo run --bin lattice-store
 
 # 2. 打开测试页面
 open http://localhost:8080/test.html
@@ -498,13 +498,13 @@ class CacheManager {
 **解决**:
 ```bash
 # 检查 Store 服务
-ps aux | grep nextim-store
+ps aux | grep lattice-store
 
 # 检查端口
 netstat -tlnp | grep 9100
 
 # 重启服务
-cargo run --bin nextim-store
+cargo run --bin lattice-store
 ```
 
 ### Q2: 消息不显示

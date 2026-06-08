@@ -1,7 +1,7 @@
 {
-  "name": "nextim-web-chat",
+  "name": "lattice-web-chat",
   "version": "1.0.0",
-  "description": "Modern web chat interface for NextIM decentralized messaging system",
+  "description": "Modern web chat interface for Lattice decentralized messaging system",
   "main": "index.html",
   "scripts": {
     "dev": "python -m http.server 8080",
@@ -10,18 +10,18 @@
     "format": "echo 'No formatter configured yet'"
   },
   "keywords": [
-    "nextim",
+    "lattice",
     "chat",
     "messaging",
     "decentralized",
     "p2p",
     "websocket"
   ],
-  "author": "NextIM Team",
+  "author": "Lattice Team",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/NextIM"
+    "url": "https://github.com/yourusername/Lattice"
   },
   "devDependencies": {},
   "dependencies": {}

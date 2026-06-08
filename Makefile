@@ -1,10 +1,10 @@
-# Makefile for NextIM
+# Makefile for Lattice
 
 .PHONY: help build test clean run-store run-peer docker-build docker-up fmt clippy check install
 
 # Default target
 help:
-	@echo "NextIM Makefile"
+	@echo "Lattice Makefile"
 	@echo ""
 	@echo "Available targets:"
 	@echo "  build        - Build all binaries in release mode"
@@ -34,16 +34,16 @@ clean:
 
 # Run Store node
 run-store:
-	cargo run --release --bin nextim-store
+	cargo run --release --bin lattice-store
 
 # Run Peer node
 run-peer:
-	cargo run --release --bin nextim-peer
+	cargo run --release --bin lattice-peer
 
 # Build Docker images
 docker-build:
-	docker build -f Dockerfile.store -t nextim-store:latest .
-	docker build -f Dockerfile.peer -t nextim-peer:latest .
+	docker build -f Dockerfile.store -t lattice-store:latest .
+	docker build -f Dockerfile.peer -t lattice-peer:latest .
 
 # Start services with docker-compose
 docker-up:
@@ -67,15 +67,15 @@ check: fmt clippy test
 
 # Install binaries
 install:
-	cargo install --path crates/nextim-store
-	cargo install --path crates/nextim-peer
+	cargo install --path crates/lattice-store
+	cargo install --path crates/lattice-peer
 
 # Development mode (watch for changes)
 dev-store:
-	cargo watch -x 'run --bin nextim-store'
+	cargo watch -x 'run --bin lattice-store'
 
 dev-peer:
-	cargo watch -x 'run --bin nextim-peer'
+	cargo watch -x 'run --bin lattice-peer'
 
 # Generate documentation
 docs:

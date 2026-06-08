@@ -5,12 +5,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.store
-    container_name: nextim-store
+    container_name: lattice-store
     ports:
       - "9100:9100"
     volumes:
-      - ./config/store.toml:/etc/nextim/store.toml:ro
-      - store-data:/var/lib/nextim/store
+      - ./config/store.toml:/etc/lattice/store.toml:ro
+      - store-data:/var/lib/lattice/store
     environment:
       - RUST_LOG=info
     restart: unless-stopped
@@ -25,11 +25,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.peer
-    container_name: nextim-peer
+    container_name: lattice-peer
     ports:
       - "9200:9200"
     volumes:
-      - ./config/peer.toml:/etc/nextim/peer.toml:ro
+      - ./config/peer.toml:/etc/lattice/peer.toml:ro
     environment:
       - RUST_LOG=info
     restart: unless-stopped

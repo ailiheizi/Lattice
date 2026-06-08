@@ -1,11 +1,11 @@
 ---
-title: "design: NextIM E2EE 运行时打通"
+title: "design: Lattice E2EE 运行时打通"
 type: design
 date: 2026-06-07
 status: draft
 ---
 
-# NextIM E2EE 运行时打通设计
+# Lattice E2EE 运行时打通设计
 
 ## 0. 目的
 
@@ -16,8 +16,8 @@ status: draft
 ## 1. 现状(已核实)
 
 **原语层已完整**:
-- `nextim-crypto::olm`:`OlmAccount`(curve25519/ed25519 公钥、生成/发布 one-time keys、fallback key、`create_outbound_session`/`create_inbound_session`)、`OlmSession`(encrypt/decrypt/session_id、pickle 持久化)。
-- `nextim-crypto::megolm`:`MegolmOutboundSession`(encrypt/session_key/message_index/pickle)、`MegolmInboundSession`(new(session_key)/decrypt/pickle)、`KeyRotationPolicy`(should_rotate)。
+- `lattice-crypto::olm`:`OlmAccount`(curve25519/ed25519 公钥、生成/发布 one-time keys、fallback key、`create_outbound_session`/`create_inbound_session`)、`OlmSession`(encrypt/decrypt/session_id、pickle 持久化)。
+- `lattice-crypto::megolm`:`MegolmOutboundSession`(encrypt/session_key/message_index/pickle)、`MegolmInboundSession`(new(session_key)/decrypt/pickle)、`KeyRotationPolicy`(should_rotate)。
 - proto:`EncryptedPayload{ciphertext, session_id, message_index, encryption_type(OLM/MEGOLM)}` 已在;消息验签(P1)对加密 payload 同样生效(签名覆盖 payload_bytes)。
 - Store `/keys/one-time`(取预密钥)、`/keys/generate`(生成);`Storage::save_key_bundle`/`get_key_bundle`;多设备 `/devices`(已落地)。
 
@@ -30,7 +30,7 @@ status: draft
 
 ## 2. 关键认知:Store 看不到明文
 
-E2EE 的核心约束:**Store 只转发密文**。Store 已有的存储/转发/DAG/签名都作用在 `EncryptedPayload.ciphertext` 上,不解密。所以 E2EE 主要是**客户端侧**工程 + Store 侧少量预密钥分发支持。这意味着大部分逻辑在 `nextim-ffi`(客户端)和 `nextim-crypto`,Store 改动小。
+E2EE 的核心约束:**Store 只转发密文**。Store 已有的存储/转发/DAG/签名都作用在 `EncryptedPayload.ciphertext` 上,不解密。所以 E2EE 主要是**客户端侧**工程 + Store 侧少量预密钥分发支持。这意味着大部分逻辑在 `lattice-ffi`(客户端)和 `lattice-crypto`,Store 改动小。
 
 ## 3. 1v1 E2EE 流程(Olm)
 
@@ -80,14 +80,14 @@ E2EE 的核心约束:**Store 只转发密文**。Store 已有的存储/转发/DA
 ## 8. 决策点(需主控拍板)
 
 > **已敲定(2026-06-07)**:
-> - D-1 → 核心编排放 nextim-crypto/core(纯逻辑可单测,ffi/store 只调用)。
+> - D-1 → 核心编排放 lattice-crypto/core(纯逻辑可单测,ffi/store 只调用)。
 > - D-2 → Store 加 `GET /keys/claim/:fingerprint`,取并消费一个 OTK(防重用),耗尽回退 fallback key。
 > - D-3 → 新建 proto `KeyDistribution` 消息 + 专用 frame type 分发群组密钥。
 > - D-4 → 新设备加入后才可解密群消息(不补发旧 Megolm session,最简单且隐私最好)。
 > - D-5 → MVP 用 TOFU(首次信任 identity key);交叉签名/设备验证留后续。
 
 
-- **D-1 实现边界**:E2EE 主要在客户端(ffi)。当前 ffi 是最小绑定。是先在 **nextim-crypto + 一个新 `session` 编排模块**做核心逻辑(可单测,不依赖真实客户端),还是直接在 ffi?推荐前者:核心编排在 crypto/core,ffi/store 只调用。
+- **D-1 实现边界**:E2EE 主要在客户端(ffi)。当前 ffi 是最小绑定。是先在 **lattice-crypto + 一个新 `session` 编排模块**做核心逻辑(可单测,不依赖真实客户端),还是直接在 ffi?推荐前者:核心编排在 crypto/core,ffi/store 只调用。
 - **D-2 预密钥 claim**:Store 加 `claim_one_time_key(fingerprint)` 端点(取并删一个 OTK,防重用)。预密钥耗尽时回退 fallback key。确认这个端点设计。
 - **D-3 群组密钥分发载体**:新 proto 消息 vs 复用 EncryptedPayload。
 - **D-4 多设备历史可见性**:新设备能否解密加入前的群消息(需补发旧 Megolm session)?默认"加入后才可见"最简单。
@@ -95,10 +95,10 @@ E2EE 的核心约束:**Store 只转发密文**。Store 已有的存储/转发/DA
 
 ## 9. 分阶段路线(建议)
 - **E1**:Store 预密钥 claim 端点(claim_one_time_key,取并消费)+ 测试。✅ 已落地(`/keys/bundle` + `/keys/claim`,`key_bundle_upload_then_claim_consumes_otk_and_falls_back`)。
-- **E2**:nextim-crypto/core 会话编排模块(1v1 Olm:建会话/加密/解密/持久化),纯逻辑单测。✅ 已落地(`nextim_crypto::session::OlmSessionManager`,5 单测覆盖往返/无会话/类型校验/pickle 恢复/非法 key)。
+- **E2**:lattice-crypto/core 会话编排模块(1v1 Olm:建会话/加密/解密/持久化),纯逻辑单测。✅ 已落地(`lattice_crypto::session::OlmSessionManager`,5 单测覆盖往返/无会话/类型校验/pickle 恢复/非法 key)。
 - **E3**:1v1 端到端(两个身份,A 加密发 B 解密,经 Store 转发密文)集成测试。✅ 已落地(`e2ee_1v1_roundtrip_through_real_store`:真实 Olm 密文经真实 Store WS 存储/sync,Bob 解密还原明文,断言 Store 只见密文)。
 - **E4**:群组 Megolm(session_key 经 Olm 分发 + Megolm 收发)。
-  - **E4a** ✅ 已落地:`nextim_crypto::group_session::MegolmSessionManager`(发送方按 room 持出站会话/加密为 `EncryptedPayload(MEGOLM)`/导出 session_key 字节;接收方按 session_id 持入站会话/解密;pickle 持久化;6 单测)。
+  - **E4a** ✅ 已落地:`lattice_crypto::group_session::MegolmSessionManager`(发送方按 room 持出站会话/加密为 `EncryptedPayload(MEGOLM)`/导出 session_key 字节;接收方按 session_id 持入站会话/解密;pickle 持久化;6 单测)。
   - **E4b**(待做):新 proto `KeyDistribution` + frame type,把 session_key 经 Olm 1v1 加密分发给成员设备的端到端集成。
 - **E5**:轮换(成员变更触发)+ 多设备分发。
 
