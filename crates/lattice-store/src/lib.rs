@@ -282,7 +282,8 @@ pub async fn run() -> Result<()> {
         let dht_addr = config.dht_addr.clone();
         let dht_store_server = dht_store.clone();
         tokio::spawn(async move {
-            if let Err(e) = lattice_discovery::service::run_server(&dht_addr, dht_store_server).await
+            if let Err(e) =
+                lattice_discovery::service::run_server(&dht_addr, dht_store_server).await
             {
                 tracing::warn!("DHT server exited: {e}");
             }

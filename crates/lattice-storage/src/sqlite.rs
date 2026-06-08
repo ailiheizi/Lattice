@@ -25,7 +25,8 @@ impl SqliteStorage {
     }
 
     pub fn in_memory() -> Result<Self> {
-        let conn = Connection::open_in_memory().map_err(|e| LatticeError::Storage(e.to_string()))?;
+        let conn =
+            Connection::open_in_memory().map_err(|e| LatticeError::Storage(e.to_string()))?;
         let storage = Self {
             conn: Mutex::new(conn),
         };

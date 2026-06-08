@@ -1388,8 +1388,8 @@ mod tests {
         let dht_addr_for_server = dht_addr.trim_start_matches("ws://").to_string();
         let store_for_server = dht_store.clone();
         tokio::spawn(async move {
-            let _ =
-                lattice_discovery::service::run_server(&dht_addr_for_server, store_for_server).await;
+            let _ = lattice_discovery::service::run_server(&dht_addr_for_server, store_for_server)
+                .await;
         });
         // 等服务就绪并发布
         for _ in 0..20 {
