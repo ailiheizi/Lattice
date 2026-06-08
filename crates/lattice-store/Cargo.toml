@@ -3,14 +3,21 @@ name = "lattice-store"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = ["storage-sqlite", "search-tantivy"]
+# 存储后端(选其一):
+storage-sqlite = ["dep:lattice-storage-sqlite"]
+# 搜索后端(选其一):
+search-tantivy = ["dep:lattice-search-tantivy"]
+
 [dependencies]
 lattice-proto = { path = "../lattice-proto" }
 lattice-core = { path = "../lattice-core" }
 lattice-crypto = { path = "../lattice-crypto" }
 lattice-crypto-olm = { path = "../lattice-crypto-olm" }
 lattice-transport-ws = { path = "../lattice-transport-ws" }
-lattice-storage-sqlite = { path = "../lattice-storage-sqlite" }
-lattice-search-tantivy = { path = "../lattice-search-tantivy" }
+lattice-storage-sqlite = { path = "../lattice-storage-sqlite", optional = true }
+lattice-search-tantivy = { path = "../lattice-search-tantivy", optional = true }
 lattice-discovery = { path = "../lattice-discovery" }
 tokio.workspace = true
 axum.workspace = true

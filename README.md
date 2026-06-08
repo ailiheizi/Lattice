@@ -2,7 +2,7 @@
 
 > 基于 Rust 的去中心化即时通讯系统 —— 用户自托管 Store 节点，消息端到端签名，支持中文全文搜索。
 
-Lattice 是一个 Rust workspace，包含 10 个 crate，覆盖协议、加密、存储、传输、节点二进制与 FFI。设计参考了 [matrix-rust-sdk](https://github.com/matrix-org/matrix-rust-sdk) 的 sans-I/O 核心 + Trait 驱动分层模式。
+Lattice 是一个 Rust workspace，包含 13 个 crate，覆盖协议、加密、存储、传输、节点二进制与 FFI。设计参考了 [matrix-rust-sdk](https://github.com/matrix-org/matrix-rust-sdk) 的 sans-I/O 核心 + Trait 驱动分层模式。
 
 **当前状态**：核心链路（消息收发、存储、转发、房间事件同步、全文搜索、DHT 地址发现 fallback）已实现并通过集成测试；E2EE 的运行时集成仍在收口中（见 [完成度](#完成度)）。本文所述能力均与代码实际状态一致，未闭环的能力会明确标注。
 
@@ -77,7 +77,7 @@ transport  storage   crypto
         lattice-proto                       ← Protobuf 生成类型
 ```
 
-规则：`lattice-core` 只定义 Trait 不依赖实现；`transport`/`storage`/`crypto` 实现 Trait；二进制 crate 负责装配。详见 [`.plans/lattice-dev/docs/architecture.md`](.plans/lattice-dev/docs/architecture.md)。
+规则：`lattice-core` 只定义 Trait 不依赖实现；各实现 crate(`transport-ws` / `storage-sqlite` / `search-tantivy` / `crypto-olm`)实现对应 Trait；二进制 crate 通过 Cargo feature + 类型别名(`ActiveStorage`/`ActiveSearch`)配置式装配选定的后端。详见 [`.plans/lattice-dev/docs/architecture.md`](.plans/lattice-dev/docs/architecture.md)。
 
 ---
 
@@ -87,11 +87,11 @@ transport  storage   crypto
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
-| Cargo workspace / Protobuf 生成 | ✅ 已落地 | 10 crate 编译通过，proto 类型生成正常 |
+| Cargo workspace / Protobuf 生成 | ✅ 已落地 | 13 crate 编译通过，proto 类型生成正常 |
 | 身份与签名（Ed25519 / Curve25519 / SHA-256 指纹） | ✅ 已落地 | `lattice-crypto`，24 单元测试 |
 | 三档信任模型（Public / TOFU / Verified） | ✅ 已落地 | `lattice-crypto/trust.rs` |
 | SQLite 存储（消息/房间/联系人/设备/密钥/房间事件） | ✅ 已落地 | `lattice-storage`，19 测试 |
-| Tantivy 全文搜索（含 CJK 分词） | ✅ 已落地 | `lattice-storage/tantivy_search.rs` |
+| Tantivy 全文搜索（含 CJK 分词） | ✅ 已落地 | `lattice-search-tantivy` |
 | WebSocket 传输（Frame 编解码 / 心跳） | ✅ 已落地 | `lattice-transport`，3 测试 |
 | Store REST + WebSocket 服务 | ✅ 已落地 | `lattice-store`，REST 路由见下文 |
 | Store→Store / Store→Peer 消息转发（含 ACK 超时、proxy fallback） | ✅ 已落地 | 集成测试覆盖转发与超时重试 |
@@ -249,12 +249,14 @@ Lattice/
 │   └── transport.proto           # WebSocket Frame
 ├── crates/
 │   ├── lattice-proto/             # Protobuf 生成代码（prost）
-│   ├── lattice-crypto/            # 身份、签名、信任、Olm/Megolm
-│   ├── lattice-core/              # 核心逻辑 + Trait 定义（sans-I/O）
-│   ├── lattice-transport/         # WebSocket 传输实现
-│   ├── lattice-storage/           # SQLite 存储 + Tantivy 搜索
+│   ├── lattice-core/              # 核心逻辑 + Trait 定义（sans-I/O，最小内核）
+│   ├── lattice-crypto/            # 基础密码学：身份、签名、信任
+│   ├── lattice-crypto-olm/        # 会话编排实现：Olm(1v1) / Megolm(群组)
+│   ├── lattice-transport-ws/      # Transport 实现：WebSocket
+│   ├── lattice-storage-sqlite/    # Storage 实现：SQLite
+│   ├── lattice-search-tantivy/    # SearchIndex 实现：Tantivy（含 CJK 分词）
 │   ├── lattice-discovery/         # Kademlia DHT + WebSocket 发现服务(已接入 store fallback)
-│   ├── lattice-store/             # Store 节点（二进制：server + relay + api）
+│   ├── lattice-store/             # Store 节点（二进制：server + relay + api，feature 装配后端）
 │   ├── lattice-peer/              # Peer 节点（二进制：relay + cache + observability）
 │   ├── lattice-ffi/               # Android FFI（UniFFI）
 │   └── lattice-tests/             # 跨节点集成测试
@@ -296,15 +298,17 @@ cargo test -p lattice-tests
 
 | Crate | 测试数 | 覆盖 |
 |-------|-------|------|
-| lattice-crypto | 59 | 密钥生成、签名验证、信任、Olm/Megolm、1v1 Olm + 群组 Megolm 会话编排 |
+| lattice-crypto | 37 | 基础密码学:密钥生成、签名验证、信任 |
 | lattice-core | 37 | 消息/房间/联系人/设备/DAG/限流核心逻辑 |
-| lattice-storage | 22 | CRUD、房间事件、密钥包、全文搜索 |
+| lattice-crypto-olm | 22 | 会话编排:Olm/Megolm、1v1 Olm + 群组 Megolm |
+| lattice-storage-sqlite | 12 | SQLite CRUD、房间事件、密钥包 |
+| lattice-search-tantivy | 10 | Tantivy 全文搜索、CJK 分词 |
 | lattice-peer | 18 | relay、缓存、可观测性、转投重试 |
 | lattice-store | 18 | frame 处理、转发、房间事件、REST 路由 |
 | lattice-tests | 15 | 跨节点 WS/REST 端到端 + 多设备 + 1v1 E2EE |
 | lattice-discovery | 13 | Kademlia 路由表、身份卡片签名 |
 | lattice-ffi | 8 | FFI 绑定 |
-| lattice-transport | 3 | WebSocket 编解码 |
+| lattice-transport-ws | 3 | WebSocket 编解码 |
 | **总计** | **193** | 单元 + 集成 |
 
 > 集成测试（`lattice-tests`）会真实启动 WebSocket 服务器和 REST 路由，验证消息存储/同步、房间事件回放、加密载荷透传、跨 Store 转发等链路。

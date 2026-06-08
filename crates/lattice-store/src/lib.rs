@@ -8,22 +8,35 @@ use tokio::sync::{Mutex, RwLock};
 
 use lattice_crypto::identity::MasterKeyPair;
 use lattice_crypto_olm::olm::OlmAccount;
+#[cfg(feature = "search-tantivy")]
 use lattice_search_tantivy::tantivy_search::TantivySearch;
+#[cfg(feature = "storage-sqlite")]
 use lattice_storage_sqlite::sqlite::SqliteStorage;
 
 pub mod api;
 pub mod server;
 
-// === 可插拔后端(简单方式)===
-// 当前后端通过类型别名 + 工厂函数集中,作为唯一扩展点。
-// 增加新后端时:把 alias 改成 enum(为其 impl 对应 trait),工厂按配置选;
-// 调用方(AppState/测试)用 alias 不变。现在只有 sqlite/tantivy 一种实现。
-/// 当前生效的存储后端实现。
+// === 可插拔后端(配置式编译)===
+// 后端实现各为独立 crate,通过 Cargo feature 选定;`ActiveStorage`/`ActiveSearch`
+// 类型别名按 feature 解析到具体实现,是上层(AppState/工厂/测试)唯一引用的扩展点。
+// 增加新后端 = 新 crate + 新 feature + 一条 cfg 别名,调用方不变。
+// 互斥守卫:同一维度只能选一个实现,选多个/零个在编译期报错。
+#[cfg(not(any(feature = "storage-sqlite")))]
+compile_error!("必须选定一个 storage 后端 feature(如 storage-sqlite)");
+
+/// 当前生效的存储后端实现(由 feature 选定)。
+#[cfg(feature = "storage-sqlite")]
 pub type ActiveStorage = SqliteStorage;
-/// 当前生效的搜索后端实现。
+
+#[cfg(not(any(feature = "search-tantivy")))]
+compile_error!("必须选定一个 search 后端 feature(如 search-tantivy)");
+
+/// 当前生效的搜索后端实现(由 feature 选定)。
+#[cfg(feature = "search-tantivy")]
 pub type ActiveSearch = TantivySearch;
 
 /// 按配置构造存储后端(可插拔扩展点)。
+#[cfg(feature = "storage-sqlite")]
 pub fn build_storage(backend: &str, db_path: &std::path::Path) -> Result<ActiveStorage> {
     match backend {
         "" | "sqlite" => SqliteStorage::open(db_path).map_err(|e| anyhow::anyhow!("{e}")),
@@ -175,7 +188,7 @@ pub async fn run() -> Result<()> {
     let index_path = config.data_dir.join("search_index");
 
     let storage = build_storage(&config.storage_backend, &db_path)?;
-    let search = TantivySearch::open(&index_path).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let search = ActiveSearch::open(&index_path).map_err(|e| anyhow::anyhow!("{e}"))?;
 
     // 初始化身份密钥（从文件加载或新建）
     let key_path = config.data_dir.join("identity.key");
