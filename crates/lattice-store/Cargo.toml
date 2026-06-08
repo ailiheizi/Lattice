@@ -9,6 +9,8 @@ default = ["storage-sqlite", "search-tantivy"]
 storage-sqlite = ["dep:lattice-storage-sqlite"]
 # 搜索后端(选其一):
 search-tantivy = ["dep:lattice-search-tantivy"]
+# 空搜索(store-light:无全文搜索,搜索恒空,零依赖):
+search-noop = []
 
 [dependencies]
 lattice-proto = { path = "../lattice-proto" }

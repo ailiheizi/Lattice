@@ -237,6 +237,20 @@ Store 与 Peer 节点间使用 WebSocket + Protobuf 通信。帧结构以 [`prot
 
 ---
 
+## 节点变体（配置式编译）
+
+节点由 Cargo feature + 类型别名在编译期组装,无需运行时插件/动态加载。每个后端维度(storage / search)必须恰好选一个实现,选零个或多个在编译期 `compile_error!` 报错。
+
+| 变体 | 组成 | 编译命令 |
+|------|------|----------|
+| **store-full**（默认） | sqlite + tantivy 搜索 + Olm/Megolm + DHT(运行时开关) | `cargo build --release -p lattice-store` |
+| **store-light** | sqlite + 空搜索(`NoopSearch`,搜索恒空、零依赖) | `cargo build --release -p lattice-store --no-default-features --features "storage-sqlite,search-noop"` |
+| **relay-light**（lattice-peer） | 内存中转缓存 + STUN + 签名校验,无持久化/搜索/E2EE | `cargo build --release -p lattice-peer` |
+
+加新后端 = 新实现(crate 或模块)+ 新 feature + 一条 `#[cfg]` 类型别名,上层(`AppState`/工厂/测试)引用的 `ActiveStorage`/`ActiveSearch` 别名不变。
+
+---
+
 ## 项目结构
 
 ```

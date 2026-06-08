@@ -14,13 +14,21 @@ use lattice_search_tantivy::tantivy_search::TantivySearch;
 use lattice_storage_sqlite::sqlite::SqliteStorage;
 
 pub mod api;
+#[cfg(feature = "search-noop")]
+pub mod noop_search;
 pub mod server;
 
+#[cfg(feature = "search-noop")]
+use noop_search::NoopSearch;
+
 // === 可插拔后端(配置式编译)===
-// 后端实现各为独立 crate,通过 Cargo feature 选定;`ActiveStorage`/`ActiveSearch`
+// 后端实现各为独立 crate(或内置模块),通过 Cargo feature 选定;`ActiveStorage`/`ActiveSearch`
 // 类型别名按 feature 解析到具体实现,是上层(AppState/工厂/测试)唯一引用的扩展点。
-// 增加新后端 = 新 crate + 新 feature + 一条 cfg 别名,调用方不变。
-// 互斥守卫:同一维度只能选一个实现,选多个/零个在编译期报错。
+// 增加新后端 = 新实现 + 新 feature + 一条 cfg 别名,调用方不变。
+//
+// 互斥守卫:同一维度必须恰好选一个实现。
+//   - 选零个 → not(any(...)) 报错;
+//   - 选多个 → all(...) 报错(否则 cfg 会取第一个匹配的别名,静默编过)。
 #[cfg(not(any(feature = "storage-sqlite")))]
 compile_error!("必须选定一个 storage 后端 feature(如 storage-sqlite)");
 
@@ -28,12 +36,16 @@ compile_error!("必须选定一个 storage 后端 feature(如 storage-sqlite)");
 #[cfg(feature = "storage-sqlite")]
 pub type ActiveStorage = SqliteStorage;
 
-#[cfg(not(any(feature = "search-tantivy")))]
-compile_error!("必须选定一个 search 后端 feature(如 search-tantivy)");
+#[cfg(not(any(feature = "search-tantivy", feature = "search-noop")))]
+compile_error!("必须选定一个 search 后端 feature(search-tantivy 或 search-noop)");
+#[cfg(all(feature = "search-tantivy", feature = "search-noop"))]
+compile_error!("search 后端只能选一个(search-tantivy 与 search-noop 互斥)");
 
 /// 当前生效的搜索后端实现(由 feature 选定)。
 #[cfg(feature = "search-tantivy")]
 pub type ActiveSearch = TantivySearch;
+#[cfg(feature = "search-noop")]
+pub type ActiveSearch = NoopSearch;
 
 /// 按配置构造存储后端(可插拔扩展点)。
 #[cfg(feature = "storage-sqlite")]
