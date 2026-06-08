@@ -94,8 +94,8 @@ E2EE 的核心约束:**Store 只转发密文**。Store 已有的存储/转发/DA
 - **D-5 信任/验证**:首次会话是否要求设备已验证(交叉签名)?MVP 可 TOFU(首次信任 identity key)。
 
 ## 9. 分阶段路线(建议)
-- **E1**:Store 预密钥 claim 端点(claim_one_time_key,取并消费)+ 测试。
-- **E2**:nextim-crypto/core 会话编排模块(1v1 Olm:建会话/加密/解密/持久化),纯逻辑单测。
+- **E1**:Store 预密钥 claim 端点(claim_one_time_key,取并消费)+ 测试。✅ 已落地(`/keys/bundle` + `/keys/claim`,`key_bundle_upload_then_claim_consumes_otk_and_falls_back`)。
+- **E2**:nextim-crypto/core 会话编排模块(1v1 Olm:建会话/加密/解密/持久化),纯逻辑单测。✅ 已落地(`nextim_crypto::session::OlmSessionManager`,5 单测覆盖往返/无会话/类型校验/pickle 恢复/非法 key)。
 - **E3**:1v1 端到端(两个身份,A 加密发 B 解密,经 Store 转发密文)集成测试。
 - **E4**:群组 Megolm(session_key 经 Olm 分发 + Megolm 收发)。
 - **E5**:轮换(成员变更触发)+ 多设备分发。
