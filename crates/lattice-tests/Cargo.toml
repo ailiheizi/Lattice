@@ -10,7 +10,8 @@ lattice-proto = { path = "../lattice-proto" }
 lattice-core = { path = "../lattice-core" }
 lattice-crypto = { path = "../lattice-crypto" }
 lattice-transport = { path = "../lattice-transport" }
-lattice-storage = { path = "../lattice-storage" }
+lattice-storage-sqlite = { path = "../lattice-storage-sqlite" }
+lattice-search-tantivy = { path = "../lattice-search-tantivy" }
 tokio.workspace = true
 prost.workspace = true
 futures-util = "0.3"

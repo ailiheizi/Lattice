@@ -8,7 +8,8 @@ lattice-proto = { path = "../lattice-proto" }
 lattice-core = { path = "../lattice-core" }
 lattice-crypto = { path = "../lattice-crypto" }
 lattice-transport = { path = "../lattice-transport" }
-lattice-storage = { path = "../lattice-storage" }
+lattice-storage-sqlite = { path = "../lattice-storage-sqlite" }
+lattice-search-tantivy = { path = "../lattice-search-tantivy" }
 lattice-discovery = { path = "../lattice-discovery" }
 tokio.workspace = true
 axum.workspace = true

@@ -1352,7 +1352,8 @@ dependencies = [
  "lattice-core",
  "lattice-crypto",
  "lattice-proto",
- "lattice-storage",
+ "lattice-search-tantivy",
+ "lattice-storage-sqlite",
  "lattice-transport",
  "prost",
  "tempfile",
@@ -1399,7 +1400,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "lattice-storage"
+name = "lattice-search-tantivy"
+version = "0.1.0"
+dependencies = [
+ "lattice-core",
+ "lattice-proto",
+ "tantivy",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "lattice-storage-sqlite"
 version = "0.1.0"
 dependencies = [
  "lattice-core",
@@ -1408,7 +1421,6 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
- "tantivy",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -1427,7 +1439,8 @@ dependencies = [
  "lattice-crypto",
  "lattice-discovery",
  "lattice-proto",
- "lattice-storage",
+ "lattice-search-tantivy",
+ "lattice-storage-sqlite",
  "lattice-transport",
  "prost",
  "serde",
@@ -1451,7 +1464,8 @@ dependencies = [
  "lattice-core",
  "lattice-crypto",
  "lattice-proto",
- "lattice-storage",
+ "lattice-search-tantivy",
+ "lattice-storage-sqlite",
  "lattice-store",
  "lattice-transport",
  "prost",

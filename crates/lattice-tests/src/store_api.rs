@@ -10,7 +10,8 @@ use lattice_crypto::{
     identity::{DeviceKeyPair, MasterKeyPair},
     olm::OlmAccount,
 };
-use lattice_storage::{sqlite::SqliteStorage, tantivy_search::TantivySearch};
+use lattice_search_tantivy::tantivy_search::TantivySearch;
+use lattice_storage_sqlite::sqlite::SqliteStorage;
 use tokio::sync::{Mutex, RwLock};
 
 use base64::Engine;

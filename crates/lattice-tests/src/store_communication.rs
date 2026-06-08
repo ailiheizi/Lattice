@@ -17,7 +17,8 @@ use lattice_proto::{
     },
     transport::{frame, AckStatus, Frame, FrameType, MessageAck, SyncRequest},
 };
-use lattice_storage::{sqlite::SqliteStorage, tantivy_search::TantivySearch};
+use lattice_search_tantivy::tantivy_search::TantivySearch;
+use lattice_storage_sqlite::sqlite::SqliteStorage;
 use prost::Message as ProstMessage;
 use tempfile::TempDir;
 use tokio::net::TcpListener;

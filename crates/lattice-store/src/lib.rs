@@ -8,8 +8,8 @@ use tokio::sync::{Mutex, RwLock};
 
 use lattice_crypto::identity::MasterKeyPair;
 use lattice_crypto::olm::OlmAccount;
-use lattice_storage::sqlite::SqliteStorage;
-use lattice_storage::tantivy_search::TantivySearch;
+use lattice_search_tantivy::tantivy_search::TantivySearch;
+use lattice_storage_sqlite::sqlite::SqliteStorage;
 
 pub mod api;
 pub mod server;

@@ -1,0 +1,15 @@
+[package]
+name = "lattice-storage-sqlite"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lattice-proto = { path = "../lattice-proto" }
+lattice-core = { path = "../lattice-core" }
+rusqlite.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+prost.workspace = true

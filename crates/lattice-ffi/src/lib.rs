@@ -6,8 +6,8 @@ use lattice_core::traits::search::SearchIndex;
 use lattice_core::traits::storage::{Pagination, Storage, TimeRange};
 use lattice_crypto::identity::MasterKeyPair;
 use lattice_proto::message::{Message, MessageContent, MessageType};
-use lattice_storage::sqlite::SqliteStorage;
-use lattice_storage::tantivy_search::TantivySearch;
+use lattice_search_tantivy::tantivy_search::TantivySearch;
+use lattice_storage_sqlite::sqlite::SqliteStorage;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LatticeFfiError {

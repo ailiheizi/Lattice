@@ -1142,7 +1142,8 @@ mod tests {
         identity::{Contact, Identity},
         message::{envelope::Payload, Envelope, MessageContent, MessageType, PlainPayload},
     };
-    use lattice_storage::{sqlite::SqliteStorage, tantivy_search::TantivySearch};
+    use lattice_search_tantivy::tantivy_search::TantivySearch;
+    use lattice_storage_sqlite::sqlite::SqliteStorage;
     use tokio::sync::{oneshot, RwLock};
     use tokio_tungstenite::{accept_async, connect_async};
 
