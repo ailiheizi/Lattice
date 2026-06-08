@@ -7,7 +7,7 @@ use serde::Deserialize;
 use tokio::sync::{Mutex, RwLock};
 
 use lattice_crypto::identity::MasterKeyPair;
-use lattice_crypto::olm::OlmAccount;
+use lattice_crypto_olm::olm::OlmAccount;
 use lattice_search_tantivy::tantivy_search::TantivySearch;
 use lattice_storage_sqlite::sqlite::SqliteStorage;
 

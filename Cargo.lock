@@ -1326,6 +1326,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "lattice-crypto-olm"
+version = "0.1.0"
+dependencies = [
+ "lattice-proto",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "vodozemac",
+]
+
+[[package]]
 name = "lattice-discovery"
 version = "0.1.0"
 dependencies = [
@@ -1437,6 +1448,7 @@ dependencies = [
  "futures-util",
  "lattice-core",
  "lattice-crypto",
+ "lattice-crypto-olm",
  "lattice-discovery",
  "lattice-proto",
  "lattice-search-tantivy",
@@ -1463,6 +1475,7 @@ dependencies = [
  "futures-util",
  "lattice-core",
  "lattice-crypto",
+ "lattice-crypto-olm",
  "lattice-proto",
  "lattice-search-tantivy",
  "lattice-storage-sqlite",

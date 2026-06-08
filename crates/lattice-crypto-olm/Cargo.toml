@@ -1,0 +1,11 @@
+[package]
+name = "lattice-crypto-olm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+lattice-proto = { path = "../lattice-proto" }
+vodozemac.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true

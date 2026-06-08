@@ -7,7 +7,8 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use lattice_core::traits::storage::Storage;
-use lattice_crypto::{identity::MasterKeyPair, olm::OlmAccount, sign};
+use lattice_crypto::{identity::MasterKeyPair, sign};
+use lattice_crypto_olm::olm::OlmAccount;
 use lattice_proto::{
     group::{Room, RoomEvent, RoomEventType},
     identity::{Contact, Identity},
@@ -981,7 +982,7 @@ async fn real_ws_server_unifies_messages_and_room_events_in_timeline() {
 /// → Bob 真实 Olm 解密还原明文。验证 Store 全程只见密文。
 #[tokio::test]
 async fn e2ee_1v1_roundtrip_through_real_store() {
-    use lattice_crypto::session::OlmSessionManager;
+    use lattice_crypto_olm::session::OlmSessionManager;
 
     let (fixture, url, server_handle) = spawn_real_store_server().await;
     let room = "e2ee-room";

@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/lattice-proto",
     "crates/lattice-crypto",
+    "crates/lattice-crypto-olm",
     "crates/lattice-core",
     "crates/lattice-transport-ws",
     "crates/lattice-storage-sqlite",

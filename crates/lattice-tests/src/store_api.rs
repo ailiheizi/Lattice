@@ -6,10 +6,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use lattice_crypto::{
-    identity::{DeviceKeyPair, MasterKeyPair},
-    olm::OlmAccount,
-};
+use lattice_crypto::identity::{DeviceKeyPair, MasterKeyPair};
+use lattice_crypto_olm::olm::OlmAccount;
 use lattice_search_tantivy::tantivy_search::TantivySearch;
 use lattice_storage_sqlite::sqlite::SqliteStorage;
 use tokio::sync::{Mutex, RwLock};

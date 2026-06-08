@@ -7,6 +7,7 @@ edition.workspace = true
 lattice-proto = { path = "../lattice-proto" }
 lattice-core = { path = "../lattice-core" }
 lattice-crypto = { path = "../lattice-crypto" }
+lattice-crypto-olm = { path = "../lattice-crypto-olm" }
 lattice-transport-ws = { path = "../lattice-transport-ws" }
 lattice-storage-sqlite = { path = "../lattice-storage-sqlite" }
 lattice-search-tantivy = { path = "../lattice-search-tantivy" }

@@ -1136,7 +1136,8 @@ mod tests {
 
     use std::collections::HashMap;
 
-    use lattice_crypto::{identity::MasterKeyPair, olm::OlmAccount};
+    use lattice_crypto::identity::MasterKeyPair;
+    use lattice_crypto_olm::olm::OlmAccount;
     use lattice_proto::{
         group::{RoomEvent, RoomEventType},
         identity::{Contact, Identity},
