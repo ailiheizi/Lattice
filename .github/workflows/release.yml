@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+            ext: ""
+          - os: windows-latest
+            platform: windows-x86_64
+            ext: ".exe"
+          - os: macos-latest
+            platform: macos-aarch64
+            ext: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install protoc
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Linux)   sudo apt-get update && sudo apt-get install -y protobuf-compiler ;;
+            macOS)   brew install protobuf ;;
+            Windows) choco install protoc -y ;;
+          esac
+          protoc --version
+
+      - name: Build variants and stage artifacts
+        shell: bash
+        run: |
+          mkdir -p dist
+          BIN="target/release/lattice-store${{ matrix.ext }}"
+          PEER="target/release/lattice-peer${{ matrix.ext }}"
+
+          # store-full(默认 feature:sqlite + tantivy 搜索)
+          cargo build --release -p lattice-store
+          cp "$BIN" "dist/lattice-store-full-${{ matrix.platform }}${{ matrix.ext }}"
+
+          # store-light(sqlite + 空搜索;与 full 同名,故 full 归档后再重建覆盖)
+          cargo build --release -p lattice-store --no-default-features --features "storage-sqlite,search-noop"
+          cp "$BIN" "dist/lattice-store-light-${{ matrix.platform }}${{ matrix.ext }}"
+
+          # peer(中转 relay)
+          cargo build --release -p lattice-peer
+          cp "$PEER" "dist/lattice-peer-${{ matrix.platform }}${{ matrix.ext }}"
+
+          ls -la dist
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lattice-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ls -la release
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

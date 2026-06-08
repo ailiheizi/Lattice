@@ -249,6 +249,8 @@ Store 与 Peer 节点间使用 WebSocket + Protobuf 通信。帧结构以 [`prot
 
 加新后端 = 新实现(crate 或模块)+ 新 feature + 一条 `#[cfg]` 类型别名,上层(`AppState`/工厂/测试)引用的 `ActiveStorage`/`ActiveSearch` 别名不变。
 
+> **部署者无需自行编译**:打 `v*` tag 会触发 [`.github/workflows/release.yml`](.github/workflows/release.yml),自动为 linux / windows / macos 各编出 `lattice-store-full`、`lattice-store-light`、`lattice-peer` 预编译二进制并发布到 GitHub Release。直接下载对应平台与变体的产物即可运行,行为由 `*.toml` 配置文件的运行时开关(DHT / 限流 / 准入 / token)控制。
+
 ---
 
 ## 项目结构
