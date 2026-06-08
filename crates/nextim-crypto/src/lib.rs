@@ -1,3 +1,4 @@
+pub mod group_session;
 pub mod identity;
 pub mod megolm;
 pub mod olm;

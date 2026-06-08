@@ -127,7 +127,7 @@ cd NextIM
 # 编译所有组件
 cargo build --release
 
-# 运行全部测试（187 个）
+# 运行全部测试（193 个）
 cargo test --workspace
 ```
 
@@ -282,7 +282,7 @@ NextIM/
 ## 测试
 
 ```bash
-# 全部测试（187 个，全绿）
+# 全部测试（193 个，全绿）
 cargo test --workspace
 
 # 单个 crate
@@ -296,7 +296,7 @@ cargo test -p nextim-tests
 
 | Crate | 测试数 | 覆盖 |
 |-------|-------|------|
-| nextim-crypto | 53 | 密钥生成、签名验证、信任、Olm/Megolm、1v1 Olm 会话编排 |
+| nextim-crypto | 59 | 密钥生成、签名验证、信任、Olm/Megolm、1v1 Olm + 群组 Megolm 会话编排 |
 | nextim-core | 37 | 消息/房间/联系人/设备/DAG/限流核心逻辑 |
 | nextim-storage | 22 | CRUD、房间事件、密钥包、全文搜索 |
 | nextim-peer | 18 | relay、缓存、可观测性、转投重试 |
@@ -305,7 +305,7 @@ cargo test -p nextim-tests
 | nextim-discovery | 13 | Kademlia 路由表、身份卡片签名 |
 | nextim-ffi | 8 | FFI 绑定 |
 | nextim-transport | 3 | WebSocket 编解码 |
-| **总计** | **187** | 单元 + 集成 |
+| **总计** | **193** | 单元 + 集成 |
 
 > 集成测试（`nextim-tests`）会真实启动 WebSocket 服务器和 REST 路由，验证消息存储/同步、房间事件回放、加密载荷透传、跨 Store 转发等链路。
 

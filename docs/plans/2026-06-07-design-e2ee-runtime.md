@@ -98,6 +98,8 @@ E2EE 的核心约束:**Store 只转发密文**。Store 已有的存储/转发/DA
 - **E2**:nextim-crypto/core 会话编排模块(1v1 Olm:建会话/加密/解密/持久化),纯逻辑单测。✅ 已落地(`nextim_crypto::session::OlmSessionManager`,5 单测覆盖往返/无会话/类型校验/pickle 恢复/非法 key)。
 - **E3**:1v1 端到端(两个身份,A 加密发 B 解密,经 Store 转发密文)集成测试。✅ 已落地(`e2ee_1v1_roundtrip_through_real_store`:真实 Olm 密文经真实 Store WS 存储/sync,Bob 解密还原明文,断言 Store 只见密文)。
 - **E4**:群组 Megolm(session_key 经 Olm 分发 + Megolm 收发)。
+  - **E4a** ✅ 已落地:`nextim_crypto::group_session::MegolmSessionManager`(发送方按 room 持出站会话/加密为 `EncryptedPayload(MEGOLM)`/导出 session_key 字节;接收方按 session_id 持入站会话/解密;pickle 持久化;6 单测)。
+  - **E4b**(待做):新 proto `KeyDistribution` + frame type,把 session_key 经 Olm 1v1 加密分发给成员设备的端到端集成。
 - **E5**:轮换(成员变更触发)+ 多设备分发。
 
 每阶段带测试,CI 绿。E2/E3 是 1v1 闭环(最小可用 E2EE),E4/E5 是群组扩展。
