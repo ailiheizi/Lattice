@@ -1109,3 +1109,169 @@ async fn e2ee_1v1_roundtrip_through_real_store() {
     ws.close(None).await.unwrap();
     server_handle.abort();
 }
+
+/// 群组 E2EE 端到端 —— Alice(群主)建 Megolm 群会话,把 session_key 经 Olm 加密成
+/// KEY_DISTRIBUTION(OLM 密文)发给成员 Bob;再发 Megolm 群消息。两条都经真实 Store WS
+/// 存储/sync。Bob 从 sync 取回:先 Olm 解密拿 session_key、建 Megolm 入站会话,再解群消息。
+/// 验证 Store 全程只见密文(密钥分发与群消息的 content 均为空)。
+#[tokio::test]
+async fn group_e2ee_roundtrip_through_real_store() {
+    use lattice_crypto_olm::group_session::MegolmSessionManager;
+    use lattice_crypto_olm::key_distribution::{decrypt_room_key, encrypt_room_key, RoomKey};
+    use lattice_crypto_olm::session::OlmSessionManager;
+
+    let (fixture, url, server_handle) = spawn_real_store_server().await;
+    let room = "group-e2ee-room";
+
+    // 群主 Alice:签名身份 + Olm + Megolm;成员 Bob:Olm + Megolm。
+    let alice_identity = MasterKeyPair::generate();
+    let mut alice_olm = OlmSessionManager::new(OlmAccount::new());
+    let mut alice_group = MegolmSessionManager::new();
+    let mut bob_olm = OlmSessionManager::new(OlmAccount::new());
+    let mut bob_group = MegolmSessionManager::new();
+
+    // Bob 发布预密钥,Alice 建立到 Bob 的出站 Olm 会话(模拟 claim)。
+    let bob_otks = bob_olm.publish_one_time_keys(1);
+    let bob_id = bob_olm.identity_key_bytes();
+    alice_olm.establish_outbound(&bob_id, &bob_otks[0]).unwrap();
+
+    // 房间 + Alice 作为已签名联系人。
+    fixture
+        .state
+        .storage
+        .save_room(&Room {
+            room_id: room.to_string(),
+            name: "group e2ee".to_string(),
+            creator_fingerprint: alice_identity.fingerprint(),
+            members: vec![],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    fixture
+        .state
+        .storage
+        .save_contact(&make_signed_contact(&alice_identity, ""))
+        .await
+        .unwrap();
+
+    // Alice 建群会话,拿 session_key,经 Olm 加密成 KEY_DISTRIBUTION 载荷(OLM 密文)。
+    let (group_session_id, session_key) = alice_group.create_outbound(room);
+    let room_key = RoomKey {
+        room_id: room.to_string(),
+        session_key,
+    };
+    let keydist_payload = encrypt_room_key(&mut alice_olm, &bob_id, &room_key).unwrap();
+    assert_eq!(keydist_payload.encryption_type, EncryptionType::Olm as i32);
+
+    // Alice 发群消息(Megolm 密文)。
+    let group_plaintext = b"secret group announcement";
+    let group_payload = alice_group.encrypt(room, group_plaintext).unwrap();
+    assert_eq!(group_payload.encryption_type, EncryptionType::Megolm as i32);
+    assert_ne!(group_payload.ciphertext, group_plaintext.to_vec());
+
+    let (mut ws, _) = connect_async(&url).await.unwrap();
+    let alice_fp = alice_identity.fingerprint();
+
+    // 两条消息都经真实 Store:密钥分发(seq1)+ 群消息(seq2)。
+    for (seq, msg_id, ts, payload) in [
+        (1u64, "keydist-1", 1000u64, keydist_payload.clone()),
+        (2, "groupmsg-1", 1001, group_payload.clone()),
+    ] {
+        let env = sign_envelope_for_test(
+            &alice_identity,
+            Envelope {
+                msg_id: msg_id.to_string(),
+                sender_fingerprint: alice_fp.clone(),
+                recipient_fingerprint: room.to_string(),
+                timestamp: ts,
+                signature: vec![],
+                payload_hash: vec![],
+                prev_hashes: Vec::new(),
+                payload: Some(Payload::Encrypted(payload)),
+            },
+        );
+        let frame = Frame {
+            seq,
+            r#type: FrameType::Message as i32,
+            body: Some(frame::Body::Message(env)),
+        };
+        ws.send(WsMessage::Binary(frame.encode_to_vec()))
+            .await
+            .unwrap();
+        let ack = ws.next().await.unwrap().unwrap();
+        let ack_frame = match ack {
+            WsMessage::Binary(data) => Frame::decode(data.as_ref()).unwrap(),
+            other => panic!("expected binary ack, got {other:?}"),
+        };
+        assert_eq!(ack_frame.r#type, FrameType::Ack as i32);
+    }
+
+    // Store 只见密文:两条消息都无明文 content。
+    for id in ["keydist-1", "groupmsg-1"] {
+        let stored = fixture
+            .state
+            .storage
+            .get_message(id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(stored.encrypted);
+        assert!(
+            stored.content.is_none(),
+            "Store must not see plaintext: {id}"
+        );
+    }
+
+    // Bob 经 sync 取回两条密文。
+    let sync = Frame {
+        seq: 3,
+        r#type: FrameType::SyncRequest as i32,
+        body: Some(frame::Body::SyncRequest(SyncRequest {
+            since_timestamp: 0,
+            room_ids: vec![room.to_string()],
+            requester_fingerprint: String::new(),
+            requester_public_key: Vec::new(),
+            signature: Vec::new(),
+        })),
+    };
+    ws.send(WsMessage::Binary(sync.encode_to_vec()))
+        .await
+        .unwrap();
+    let sync_resp = ws.next().await.unwrap().unwrap();
+    let sync_frame = match sync_resp {
+        WsMessage::Binary(data) => Frame::decode(data.as_ref()).unwrap(),
+        other => panic!("expected binary sync response, got {other:?}"),
+    };
+    let msgs = match sync_frame.body {
+        Some(frame::Body::SyncResponse(r)) => r.messages,
+        other => panic!("expected sync response body, got {other:?}"),
+    };
+    assert_eq!(msgs.len(), 2);
+
+    // 按 msg_id 取回各自密文。
+    let payload_of = |id: &str| -> EncryptedPayload {
+        let m = msgs
+            .iter()
+            .find(|m| m.msg_id == id)
+            .expect("message present");
+        match m.payload.as_ref().unwrap() {
+            Payload::Encrypted(e) => e.clone(),
+            other => panic!("expected encrypted, got {other:?}"),
+        }
+    };
+
+    // Bob 先 Olm 解密密钥分发 → 建 Megolm 入站会话。
+    let alice_id = alice_olm.identity_key_bytes();
+    let recovered = decrypt_room_key(&mut bob_olm, &alice_id, &payload_of("keydist-1")).unwrap();
+    assert_eq!(recovered.room_id, room);
+    let accepted_id = bob_group.accept_inbound(&recovered.session_key).unwrap();
+    assert_eq!(accepted_id, group_session_id);
+
+    // 再用 Megolm 入站会话解群消息 → 还原明文。
+    let decrypted = bob_group.decrypt(&payload_of("groupmsg-1")).unwrap();
+    assert_eq!(decrypted, group_plaintext);
+
+    ws.close(None).await.unwrap();
+    server_handle.abort();
+}
