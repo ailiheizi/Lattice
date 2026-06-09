@@ -127,7 +127,7 @@ cd Lattice
 # 编译所有组件
 cargo build --release
 
-# 运行全部测试（202 个）
+# 运行全部测试（203 个）
 cargo test --workspace
 ```
 
@@ -300,7 +300,7 @@ Lattice/
 ## 测试
 
 ```bash
-# 全部测试（202 个，全绿）
+# 全部测试（203 个，全绿）
 cargo test --workspace
 
 # 单个 crate
@@ -319,13 +319,13 @@ cargo test -p lattice-tests
 | lattice-crypto-olm | 30 | 会话编排:Olm/Megolm、1v1 Olm + 群组 Megolm |
 | lattice-storage-sqlite | 12 | SQLite CRUD、房间事件、密钥包 |
 | lattice-search-tantivy | 10 | Tantivy 全文搜索、CJK 分词 |
-| lattice-peer | 18 | relay、缓存、可观测性、转投重试 |
+| lattice-peer | 19 | relay、缓存、可观测性、转投重试 |
 | lattice-store | 18 | frame 处理、转发、房间事件、REST 路由 |
 | lattice-tests | 16 | 跨节点 WS/REST 端到端 + 多设备 + 1v1 E2EE |
 | lattice-discovery | 13 | Kademlia 路由表、身份卡片签名 |
 | lattice-ffi | 8 | FFI 绑定 |
 | lattice-transport-ws | 3 | WebSocket 编解码 |
-| **总计** | **202** | 单元 + 集成 |
+| **总计** | **203** | 单元 + 集成 |
 
 > 集成测试（`lattice-tests`）会真实启动 WebSocket 服务器和 REST 路由，验证消息存储/同步、房间事件回放、加密载荷透传、跨 Store 转发等链路。
 

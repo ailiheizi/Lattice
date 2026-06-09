@@ -126,7 +126,27 @@ async fn handle_frame(
                 return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
             }
 
-            // TODO(D-5): Peer 当前只有结构校验，无发送方公钥，后续按设计文档补 soft-fail/验签策略。
+            // D-5:Peer 无发送方公钥,不能验 ed25519 签名(留给收件 Store)。
+            // 但 compute_msg_hash 不需公钥——重算消息哈希并与 payload_hash 比对,
+            // 挡住 payload 被篡改(与声明 hash 不符)的消息(密码学硬拒一档)。
+            match lattice_crypto::sign::compute_msg_hash(envelope) {
+                Ok(computed) if computed == envelope.payload_hash => {}
+                Ok(_) => {
+                    tracing::warn!(
+                        "Rejecting message {}: payload_hash mismatch (tampered payload)",
+                        envelope.msg_id
+                    );
+                    return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Rejecting message {}: cannot compute hash: {e}",
+                        envelope.msg_id
+                    );
+                    return Ok(Some(rejected_ack(frame.seq, &envelope.msg_id)));
+                }
+            }
+
             let recipient = &envelope.recipient_fingerprint;
             let data = frame.encode_to_vec();
 
@@ -281,25 +301,28 @@ mod tests {
     };
 
     fn test_message_frame(seq: u64, msg_id: &str, recipient: &str) -> Frame {
+        let mut envelope = Envelope {
+            msg_id: msg_id.to_string(),
+            sender_fingerprint: "sender".to_string(),
+            recipient_fingerprint: recipient.to_string(),
+            timestamp: 1,
+            signature: vec![1; 64],
+            payload_hash: Vec::new(),
+            prev_hashes: Vec::new(),
+            payload: Some(Payload::Plain(PlainPayload {
+                content: Some(MessageContent {
+                    r#type: MessageType::Text as i32,
+                    text: "hello".to_string(),
+                    ..Default::default()
+                }),
+            })),
+        };
+        // 填入真实哈希,使其通过 D-5 的 payload_hash 校验(签名仍为占位,Peer 不验签)。
+        envelope.payload_hash = lattice_crypto::sign::compute_msg_hash(&envelope).unwrap();
         Frame {
             seq,
             r#type: FrameType::Message as i32,
-            body: Some(frame::Body::Message(Envelope {
-                msg_id: msg_id.to_string(),
-                sender_fingerprint: "sender".to_string(),
-                recipient_fingerprint: recipient.to_string(),
-                timestamp: 1,
-                signature: vec![1; 64],
-                payload_hash: vec![2; 32],
-                prev_hashes: Vec::new(),
-                payload: Some(Payload::Plain(PlainPayload {
-                    content: Some(MessageContent {
-                        r#type: MessageType::Text as i32,
-                        text: "hello".to_string(),
-                        ..Default::default()
-                    }),
-                })),
-            })),
+            body: Some(frame::Body::Message(envelope)),
         }
     }
 
@@ -404,6 +427,40 @@ mod tests {
         let mut frame = test_message_frame(7, "msg-1", "alice");
         if let Some(frame::Body::Message(envelope)) = frame.body.as_mut() {
             envelope.payload = None;
+        }
+
+        let response = handle_frame(frame, &cache, &observability)
+            .await
+            .unwrap()
+            .expect("message frames should return ack");
+
+        match response.body {
+            Some(frame::Body::Ack(ack)) => {
+                assert_eq!(ack.status, AckStatus::Rejected as i32);
+            }
+            other => panic!("expected ack response, got {other:?}"),
+        }
+
+        let snapshot = observability.lock().await.snapshot();
+        assert_eq!(snapshot.total_relayed, 0);
+        assert!(cache.lock().await.drain_for("alice").is_empty());
+    }
+
+    /// D-5:payload 被篡改(与 payload_hash 不符)→ Peer 重算哈希比对后硬拒,不缓存。
+    #[tokio::test]
+    async fn handle_frame_rejects_tampered_payload_hash() {
+        let cache = Mutex::new(RelayCache::new(10, 60_000));
+        let observability = Arc::new(Mutex::new(PeerObservability::default()));
+        let mut frame = test_message_frame(7, "msg-1", "alice");
+        // 篡改正文:payload_hash 仍是旧的,与新正文不符。
+        if let Some(frame::Body::Message(envelope)) = frame.body.as_mut() {
+            envelope.payload = Some(Payload::Plain(PlainPayload {
+                content: Some(MessageContent {
+                    r#type: MessageType::Text as i32,
+                    text: "tampered".to_string(),
+                    ..Default::default()
+                }),
+            }));
         }
 
         let response = handle_frame(frame, &cache, &observability)
