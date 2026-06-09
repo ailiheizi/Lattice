@@ -920,10 +920,14 @@ async fn persist_incoming_message(
             missing_parents.len()
         );
         tracing::debug!(
-            "TODO(P4): fetch missing parent hashes for {}: {:?}",
+            "Pending {} awaiting parents (passive promote): {:?}",
             message.msg_id,
             missing_parents
         );
+        // 设计决策(P4):缺父节点时存入 pending 区,靠后续消息到达触发 promote_pending_messages
+        // 被动收敛——正常乱序/抖动下父节点终会到达,保证最终一致。主动向对端拉取缺失父节点
+        // (需新增请求-响应 proto 与双向交互)仅在"父节点永不到达"的边缘场景有额外价值,列为
+        // 将来优化,当前不引入额外协议复杂度。
         return Ok(());
     }
 
