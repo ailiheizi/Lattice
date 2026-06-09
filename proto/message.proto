@@ -25,11 +25,20 @@ message EncryptedPayload {
     string session_id = 2;
     uint32 message_index = 3;
     EncryptionType encryption_type = 4;
+    // 加密套件版本(crypto agility):append-only,默认 0 = 当前套件。
+    // 将来引入新算法时取新枚举值,旧消息仍按其自带 suite 解密。
+    CryptoSuite crypto_suite = 5;
 }
 
 enum EncryptionType {
     OLM = 0;
     MEGOLM = 1;
+}
+
+// 加密套件标识(密钥协商/算法升级用)。新增套件一律追加新值,绝不复用/重排既有值。
+enum CryptoSuite {
+    // 当前唯一套件:Olm v1(1v1)+ Megolm v1(群组),vodozemac 实现。
+    SUITE_OLM_V1_MEGOLM_V1 = 0;
 }
 
 message MessageContent {

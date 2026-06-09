@@ -89,6 +89,7 @@ fn make_encrypted_envelope(msg_id: &str, sender: &str, recipient: &str) -> Envel
             session_id: "olm-session-1".to_string(),
             message_index: 42,
             encryption_type: EncryptionType::Olm as i32,
+            ..Default::default()
         })),
     }
 }

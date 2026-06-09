@@ -30,6 +30,8 @@ pub enum SessionError {
     NoSession,
     #[error("expected OLM payload, got encryption_type={0}")]
     WrongEncryptionType(i32),
+    #[error("unsupported crypto_suite={0} (peer using a newer/unknown algorithm suite)")]
+    UnsupportedSuite(i32),
     #[error("malformed olm message: {0}")]
     MalformedMessage(String),
     #[error("decrypt failed: {0}")]
@@ -119,6 +121,7 @@ impl OlmSessionManager {
             session_id: session.session_id(),
             message_index,
             encryption_type: EncryptionType::Olm as i32,
+            crypto_suite: crate::CURRENT_CRYPTO_SUITE,
         })
     }
 
@@ -133,6 +136,9 @@ impl OlmSessionManager {
     ) -> Result<Vec<u8>, SessionError> {
         if payload.encryption_type != EncryptionType::Olm as i32 {
             return Err(SessionError::WrongEncryptionType(payload.encryption_type));
+        }
+        if !crate::is_supported_suite(payload.crypto_suite) {
+            return Err(SessionError::UnsupportedSuite(payload.crypto_suite));
         }
         let identity = parse_curve_key(peer_identity_key)?;
         let key = peer_key_id(&identity);
@@ -261,6 +267,7 @@ mod tests {
             session_id: "x".into(),
             message_index: OLM_TYPE_NORMAL,
             encryption_type: EncryptionType::Olm as i32,
+            ..Default::default()
         };
         let err = mgr.decrypt(&peer_identity, &payload).unwrap_err();
         // 无会话的 Normal:可能先在 from_parts 处失败(畸形),也可能 NoSession;
@@ -280,6 +287,7 @@ mod tests {
             session_id: String::new(),
             message_index: 0,
             encryption_type: EncryptionType::Megolm as i32,
+            ..Default::default()
         };
         let err = mgr.decrypt(&peer, &payload).unwrap_err();
         assert!(matches!(err, SessionError::WrongEncryptionType(_)));
@@ -318,5 +326,37 @@ mod tests {
         let too_short = [0u8; 10];
         let err = mgr.establish_outbound(&too_short, &too_short).unwrap_err();
         assert!(matches!(err, SessionError::InvalidKey(_)));
+    }
+
+    /// crypto agility:产出的密文带当前套件,且能正常解密(往返)。
+    #[test]
+    fn encrypt_stamps_current_suite_and_roundtrips() {
+        let mut bob = OlmSessionManager::new(OlmAccount::new());
+        let otks = bob.publish_one_time_keys(1);
+        let bob_id = bob.identity_key_bytes();
+        let mut alice = OlmSessionManager::new(OlmAccount::new());
+        alice.establish_outbound(&bob_id, &otks[0]).unwrap();
+
+        let payload = alice.encrypt(&bob_id, b"hi").unwrap();
+        assert_eq!(payload.crypto_suite, crate::CURRENT_CRYPTO_SUITE);
+
+        let alice_id = alice.identity_key_bytes();
+        assert_eq!(bob.decrypt(&alice_id, &payload).unwrap(), b"hi");
+    }
+
+    /// crypto agility:未知套件的密文被明确拒绝(而非误用当前算法解错)。
+    #[test]
+    fn unknown_suite_rejected() {
+        let mut bob = OlmSessionManager::new(OlmAccount::new());
+        let otks = bob.publish_one_time_keys(1);
+        let bob_id = bob.identity_key_bytes();
+        let mut alice = OlmSessionManager::new(OlmAccount::new());
+        alice.establish_outbound(&bob_id, &otks[0]).unwrap();
+
+        let mut payload = alice.encrypt(&bob_id, b"future").unwrap();
+        payload.crypto_suite = 999; // 模拟更新的算法套件
+        let alice_id = alice.identity_key_bytes();
+        let err = bob.decrypt(&alice_id, &payload).unwrap_err();
+        assert!(matches!(err, SessionError::UnsupportedSuite(999)));
     }
 }

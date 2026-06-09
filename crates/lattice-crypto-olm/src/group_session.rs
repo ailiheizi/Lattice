@@ -31,6 +31,8 @@ pub enum GroupSessionError {
     NoInboundSession,
     #[error("expected MEGOLM payload, got encryption_type={0}")]
     WrongEncryptionType(i32),
+    #[error("unsupported crypto_suite={0} (peer using a newer/unknown algorithm suite)")]
+    UnsupportedSuite(i32),
     #[error("malformed megolm message: {0}")]
     MalformedMessage(String),
     #[error("invalid session key: {0}")]
@@ -100,6 +102,7 @@ impl MegolmSessionManager {
             session_id: session.session_id(),
             message_index,
             encryption_type: EncryptionType::Megolm as i32,
+            crypto_suite: crate::CURRENT_CRYPTO_SUITE,
         })
     }
 
@@ -131,6 +134,9 @@ impl MegolmSessionManager {
             return Err(GroupSessionError::WrongEncryptionType(
                 payload.encryption_type,
             ));
+        }
+        if !crate::is_supported_suite(payload.crypto_suite) {
+            return Err(GroupSessionError::UnsupportedSuite(payload.crypto_suite));
         }
         let session = self
             .inbound
@@ -237,6 +243,7 @@ mod tests {
             session_id: "x".into(),
             message_index: 0,
             encryption_type: EncryptionType::Olm as i32,
+            ..Default::default()
         };
         let err = mgr.decrypt(&payload).unwrap_err();
         assert!(matches!(err, GroupSessionError::WrongEncryptionType(_)));

@@ -893,6 +893,7 @@ mod tests {
                 session_id: "session-1".to_string(),
                 message_index: 7,
                 encryption_type: lattice_proto::message::EncryptionType::Olm as i32,
+                ..Default::default()
             }),
             received_ts: 0,
             prev_hashes: Vec::new(),
