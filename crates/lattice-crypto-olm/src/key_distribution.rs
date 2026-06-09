@@ -105,6 +105,24 @@ pub fn decrypt_room_key(
     RoomKey::decode(&plaintext)
 }
 
+/// 群主侧:把房间密钥分发给多个设备(多设备 / 多成员通用)。
+///
+/// `device_identity_keys` 是当前所有目标设备的 curve25519 公钥字节(每个用户的每台设备一项);
+/// 每项都必须已 `establish_outbound`。返回 `(设备 identity_key, 该设备的 OLM 密文)` 列表,
+/// 由调用方分别投递。轮换后只对"当前成员设备"调用本函数,被移除者自然收不到新 key。
+pub fn distribute_to_devices(
+    olm: &mut OlmSessionManager,
+    device_identity_keys: &[Vec<u8>],
+    room_key: &RoomKey,
+) -> Result<Vec<(Vec<u8>, EncryptedPayload)>, KeyDistributionError> {
+    let mut out = Vec::with_capacity(device_identity_keys.len());
+    for dev in device_identity_keys {
+        let payload = encrypt_room_key(olm, dev, room_key)?;
+        out.push((dev.clone(), payload));
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,6 +224,68 @@ mod tests {
         let ct = owner_group.encrypt(room, b"broadcast").unwrap();
         for m in members.iter_mut() {
             assert_eq!(m.decrypt(&ct).unwrap(), b"broadcast");
+        }
+    }
+
+    /// E5 前向保密:轮换后,持旧 session 的成员无法解密新 session 的消息。
+    #[test]
+    fn rotation_locks_out_old_session() {
+        let room = "rot";
+        let mut owner_group = MegolmSessionManager::new();
+        let (_sid, key_v1) = owner_group.create_outbound(room);
+
+        // 成员用 v1 session_key 建入站会话,能解 v1 消息。
+        let mut member = MegolmSessionManager::new();
+        member.accept_inbound(&key_v1).unwrap();
+        let c1 = owner_group.encrypt(room, b"before rotation").unwrap();
+        assert_eq!(member.decrypt(&c1).unwrap(), b"before rotation");
+
+        // 群主轮换(踢人场景):新 session_key,且不再分发给该成员。
+        let (_sid2, _key_v2) = owner_group.rotate(room);
+        let c2 = owner_group.encrypt(room, b"after rotation").unwrap();
+
+        // 旧成员持 v1,解不了 v2 消息(新 session_id 无对应入站会话)。
+        assert!(member.decrypt(&c2).is_err());
+    }
+
+    /// E5 多设备:distribute_to_devices 批量分发,所有设备都能解群消息。
+    #[test]
+    fn distribute_to_devices_reaches_all() {
+        let room = "multidev";
+        let mut owner_group = MegolmSessionManager::new();
+        let (_sid, session_key) = owner_group.create_outbound(room);
+        let rk = RoomKey {
+            room_id: room.to_string(),
+            session_key,
+        };
+
+        let mut owner_olm = OlmSessionManager::new(OlmAccount::new());
+        let owner_id = owner_olm.identity_key_bytes();
+
+        // 三台设备:各发布预密钥,群主对每台建出站 Olm 会话。
+        let mut devices = Vec::new();
+        let mut dev_ids = Vec::new();
+        for _ in 0..3 {
+            let mut d_olm = OlmSessionManager::new(OlmAccount::new());
+            let otks = d_olm.publish_one_time_keys(1);
+            let d_id = d_olm.identity_key_bytes();
+            owner_olm.establish_outbound(&d_id, &otks[0]).unwrap();
+            dev_ids.push(d_id.to_vec());
+            devices.push(d_olm);
+        }
+
+        // 一次批量分发到三台设备。
+        let payloads = distribute_to_devices(&mut owner_olm, &dev_ids, &rk).unwrap();
+        assert_eq!(payloads.len(), 3);
+
+        // 每台设备 Olm 解密 → 建 Megolm 入站 → 解群消息。
+        let ct = owner_group.encrypt(room, b"to all devices").unwrap();
+        for (i, d_olm) in devices.iter_mut().enumerate() {
+            let (_dev_id, payload) = &payloads[i];
+            let got = decrypt_room_key(d_olm, &owner_id, payload).unwrap();
+            let mut d_group = MegolmSessionManager::new();
+            d_group.accept_inbound(&got.session_key).unwrap();
+            assert_eq!(d_group.decrypt(&ct).unwrap(), b"to all devices");
         }
     }
 }

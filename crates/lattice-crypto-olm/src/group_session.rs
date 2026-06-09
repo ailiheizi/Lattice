@@ -74,6 +74,15 @@ impl MegolmSessionManager {
         self.outbound.contains_key(room_id)
     }
 
+    /// 轮换房间的出站会话:废弃旧 Megolm 会话,生成全新 `session_key`,返回 `(新 session_id, 新 session_key 字节)`。
+    ///
+    /// 用于成员变更(踢人/退群)或达到 [`crate::megolm::KeyRotationPolicy`] 阈值时。
+    /// 轮换后必须把新 `session_key` 经 Olm 重新分发给当前成员(被踢者不再获得 → 无法解后续消息,
+    /// 即前向保密)。语义上等同 `create_outbound`,但名字明确表达"轮换"意图。
+    pub fn rotate(&mut self, room_id: &str) -> (String, Vec<u8>) {
+        self.create_outbound(room_id)
+    }
+
     /// 用房间出站会话加密群消息为 `EncryptedPayload(MEGOLM)`。
     pub fn encrypt(
         &mut self,
