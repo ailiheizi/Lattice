@@ -2,7 +2,7 @@
 
 > 基于 Rust 的去中心化即时通讯系统 —— 用户自托管 Store 节点，消息端到端签名，支持中文全文搜索。
 
-Lattice 是一个 Rust workspace，包含 13 个 crate，覆盖协议、加密、存储、传输、节点二进制与 FFI。设计参考了 [matrix-rust-sdk](https://github.com/matrix-org/matrix-rust-sdk) 的 sans-I/O 核心 + Trait 驱动分层模式。
+Lattice 是一个 Rust workspace，包含 12 个 crate，覆盖协议、加密、存储、传输、节点二进制与 FFI。设计参考了 [matrix-rust-sdk](https://github.com/matrix-org/matrix-rust-sdk) 的 sans-I/O 核心 + Trait 驱动分层模式。
 
 **当前状态**：核心链路（消息收发、存储、转发、房间事件同步、全文搜索、DHT 地址发现 fallback）已实现并通过集成测试；E2EE 的运行时集成仍在收口中（见 [完成度](#完成度)）。本文所述能力均与代码实际状态一致，未闭环的能力会明确标注。
 
@@ -87,7 +87,7 @@ transport  storage   crypto
 
 | 能力 | 状态 | 说明 |
 |------|------|------|
-| Cargo workspace / Protobuf 生成 | ✅ 已落地 | 13 crate 编译通过，proto 类型生成正常 |
+| Cargo workspace / Protobuf 生成 | ✅ 已落地 | 12 crate 编译通过，proto 类型生成正常 |
 | 身份与签名（Ed25519 / Curve25519 / SHA-256 指纹） | ✅ 已落地 | `lattice-crypto`，24 单元测试 |
 | 三档信任模型（Public / TOFU / Verified） | ✅ 已落地 | `lattice-crypto/trust.rs` |
 | SQLite 存储（消息/房间/联系人/设备/密钥/房间事件） | ✅ 已落地 | `lattice-storage`，19 测试 |
